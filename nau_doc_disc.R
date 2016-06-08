@@ -74,6 +74,7 @@ compareClasses = function(s) {
     bycd=subset(bycd,N>4)
     bycd=merge(bycd,ddply(bycd,.(disc),summarize,Nt=length(N)),by="disc")
     bycd.2=subset(bycd,Nt==2)
+    bycd.3=subset(bycd,Nt>2)
 
     ## (2) extract coordinates, layout them
     bycd.2a=ddply(bycd.2,.(disc),summarize,m.x=m[1],m.y=m[2])
@@ -88,7 +89,24 @@ compareClasses = function(s) {
     ##pdf(paste0("correlation-",year,".pdf"),11,7)
     ggplot(data=bycd.2a)+geom_abline(intercept=0,slope=1,color="white")+geom_abline(intercept=-0.5,slope=1,color="white")+geom_abline(intercept=0.5,slope=1,color="white")+geom_segment(aes(x=x,y=y,xend=m.x,yend=m.y),color="gray")+geom_point(aes(x=m.x,y=m.y),color="red")+labs(x="Média turma A",y="Média turma B",title=paste0("Comparação das disciplinas em ",s[[4]]," com duas turmas\n(somente turmas com mais que 4 respostas)"))+geom_text(aes(x=x,y=y,label=label),size=2,hjust=0)
     ##dev.off()
+    list(bycd.3,s[[4]])
 }
+
+questions=c(
+"analisou com os discentes os resultados das avaliações.",
+"realizou avaliações compatíveis com o que foi trabalhado na atividade de ensino.",
+"teve postura adequada diante da diversidade sociocultural.",
+"utilizou recursos e procedimentos didáticos adequados.",
+"foi assíduo e pontual.",
+"cumpriu o plano de ensino.",
+"contextualizou os conhecimentos desenvolvidos.",
+"manteve atitudes de respeito e cortesia.",
+"trabalhou com clareza e objetividade.",
+"disponibilizou tempo para atender os discentes fora da sala de aula, pessoalmente e/ou à distância.",
+"demonstrou domínio dos conteúdos.")
+
+##evaluateQuestions1 = function(s) {
+    
 
 ######################################################################
 ## evaluations
@@ -103,8 +121,20 @@ y15s2=evaluateSemester("data2/ADoc Disc - Quant.csv","2015-2",format="v2")
 compareSemesters(y15s1,y15s2)
 
 ## (3) compare classes in a semester
-compareClasses(y15s1)
-compareClasses(y15s2)
+t3=compareClasses(y15s1)
+t3=compareClasses(y15s2)
+
+## (4) compares multiple classes (data from 3)
+ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot()+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Média",x="Disciplina")
+
+## (5) plots per question (TBD: polish, wrap in function)
+xx=subset(melt(s[[1]]),grepl("q",variable))
+savevars=xx$variable
+xx$variable=wrap.it(sapply(as.character(savevars),FUN=function(s) { questions[as.numeric(substr(s,2,nchar(s)))] }),20)
+ggplot(data=xx,aes(x=variable,y=value))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),y="Nota",x="Questão")
+##ggplot(data=xx,aes(x=variable,y=value))+stat_bin(aes(x=value),inherit.aes=F)+geom_bar(color="red")+coord_flip()+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),y="Nota",x="Questão")
+xx$variable=wrap.it(sapply(as.character(savevars),FUN=function(s) { questions[as.numeric(substr(s,2,nchar(s)))] }),55)
+ggplot(data=xx,aes(x=value))+geom_bar(stat="bin",fill="red")+facet_wrap(~variable)+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),x="Nota",y="Número de respostas")
 
 #################### leftovers
 
@@ -121,6 +151,5 @@ fb[order(-fb$N),]
 ## 1) overall correlation of all eleven questions (plot a matrix)
 ## 2) Need: additional data per course (semester)
 ## 3) seperate aspects of professors and courses
-## 4) correlation of "turmas"
-
-
+## 5) join by "question groups"
+## 7) use Rodrigo's script and show statistics per question
