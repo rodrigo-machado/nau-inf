@@ -85,7 +85,7 @@ compareClasses = function(s) {
     bycd.2a$label=wrap.it(bycd.2a$disc,20)
     
     ## (3) plot it
-    ##pdf(paste0("correl-",year,".pdf"),10,5)
+    ##pdf(paste0("correlation-",year,".pdf"),11,7)
     ggplot(data=bycd.2a)+geom_abline(intercept=0,slope=1,color="white")+geom_abline(intercept=-0.5,slope=1,color="white")+geom_abline(intercept=0.5,slope=1,color="white")+geom_segment(aes(x=x,y=y,xend=m.x,yend=m.y),color="gray")+geom_point(aes(x=m.x,y=m.y),color="red")+labs(x="Média turma A",y="Média turma B",title=paste0("Comparação das disciplinas em ",s[[4]]," com duas turmas\n(somente turmas com mais que 4 respostas)"))+geom_text(aes(x=x,y=y,label=label),size=2,hjust=0)
     ##dev.off()
 }
@@ -105,7 +105,6 @@ compareSemesters(y15s1,y15s2)
 ## (3) compare classes in a semester
 compareClasses(y15s1)
 compareClasses(y15s2)
-
 
 #################### leftovers
 
