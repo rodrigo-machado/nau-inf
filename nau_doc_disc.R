@@ -153,9 +153,9 @@ pdf(onefile=F,width=20,height=11)
 
 ## (1) evaluation of complete semesters
 ## NOTE: empty fields and NAs have been mapped to NA
-y14s2=evaluateSemester("data/2014-2/AvalDocPeloDisc 2014-2.csv","2014-2",format="v1")
-y15s1=evaluateSemester("data/2015-1/AvalDocPeloDisc 2015-1.v1.csv","2015-1",format="v1")
-y15s2=evaluateSemester("data/2015-2/ADoc Disc - Quant.csv","2015-2",format="v2")
+y14s2=evaluateSemester("data/sai/2014-2/AvalDocPeloDisc 2014-2.csv","2014-2",format="v1")
+y15s1=evaluateSemester("data/sai/2015-1/AvalDocPeloDisc 2015-1.v1.csv","2015-1",format="v1")
+y15s2=evaluateSemester("data/sai/2015-2/ADoc Disc - Quant.csv","2015-2",format="v2")
 
 ## (2) compare evalutions of two semesters
 compareSemesters(y14s2,y15s1)
