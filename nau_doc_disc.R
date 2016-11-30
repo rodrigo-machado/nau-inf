@@ -1,7 +1,7 @@
 ######################################################################
 ## Avalição do docente pelos discentes
 ######################################################################
-library(plyr)
+library(dplyr)
 library(RColorBrewer)
 library(ggplot2)
 library(reshape2)
@@ -41,13 +41,13 @@ evaluateSemester = function(f,year,format="v1") {
                 v3=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), ## 2015-2
                 v4=c("curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg") ## 2016-1
                        )
-    ## (0.1) apply the weights
+    ## (0.1) sum the weights
     d$tw=apply(d[,qcol],1,function(x) { weighted.mean(!is.na(x),w,na.rm=T) })
-    for (i in 1:length(qcol)) {
-        d[,qcol[i]]=10*w[i]*d[,qcol[i]]/d$tw
-    }
+    
     ## (0.2) for verification: compute the means
-    d$nm=apply(d[,qcol],1,function(x) { ifelse(sum(is.na(x))==length(qcol),NA,sum(x,na.rm=T)) })
+    d$nm=apply(d[,qcol],1,function(x) { sum(x*w,na.rm=T) })
+    d$nm=d$nm/d$tw
+    d$nm[d$tw==0]=NA
     
     ## (1) clean up data: remove all programs with less than 10 responses
     fewR=subset(ddply(d,.(curso),summarize,N=length(turma)),N<10)$curso
@@ -55,15 +55,23 @@ evaluateSemester = function(f,year,format="v1") {
 
     ## (2) aggregate by courses
     f=ddply(e,.(disc),summarize,N=length(q1),q1=mean(q1,na.rm=T),q2=mean(q2,na.rm=T),q3=mean(q3,na.rm=T),q4=mean(q4,na.rm=T),q5=mean(q5,na.rm=T),q6=mean(q6,na.rm=T),q7=mean(q7,na.rm=T),q8=mean(q8,na.rm=T),q9=mean(q9,na.rm=T),q10=mean(q10,na.rm=T),q11=mean(q11,na.rm=T))
-    f$m=rowMeans(f[,3:13],na.rm=T)
+    f$m=rowMeans(f[,qcol],na.rm=T)
     f=f[order(f$m),]
     f=subset(f,N>4) ## remove all courses with 4 evaluations or less
 
     ## (3) produce a overview plot
-    op <- par(mar = c(5,14,4,2) + 0.1)
-    with(f,barplot(rbind(q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11),names=paste(disc," (",N,")",sep=""),horiz=T,las=1,cex.names=0.5,col=brewer.pal(11,"Oranges"),border=NA,xlab="Average number of points (number of samples in parentheses)",main=paste0("Evaluação geral disciplinas em ",year,"\n(somente disciplinas com 5 ou mais avaliações)"),legend.text=c("1","2","3","4","5","6","7","8","9","10","11"),args.legend = list(x = "bottomright", title="Questão", ncol = 2)))
-    grid()
-    par(op)
+    ##op <- par(mar = c(5,14,4,2) + 0.1)
+    ##with(f,barplot(rbind(q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11),names=paste0(disc," (",N,")"),horiz=T,las=1,cex.names=0.5,col=brewer.pal(11,"Oranges"),border=NA,xlab="Nota média  (número de avaliações)",legend.text=c("1","2","3","4","5","6","7","8","9","10","11"),args.legend = list(x = "bottomright", title="Questão", ncol = 2)))
+    #### main=paste0("Evaluação geral disciplinas em ",year)
+    ##abline(v=44,col="red",lwd=2)
+    ##grid()
+    ##par(op)
+
+    f$xnames=paste0(f$disc," (",f$N,")")
+    f$xnames=factor(f$xnames,levels=f$xnames)
+    mf=subset(melt(f),grepl("q",variable))
+    print(ggplot(data=mf,aes(x=xnames,y=value,fill=variable))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="",y="Nota média (número de avaliações)")+scale_fill_brewer(name="Questão",palette="Spectral")+geom_hline(yintercept=44,color="red")+theme(axis.text.y=element_text(size=5))+theme(legend.position="top")+guides(fill=guide_legend(nrow=1)))#+theme(legend.position=c(0.95,0.15))
+
     list(d,e,f,year)
 }
 
@@ -109,7 +117,7 @@ compareClasses = function(s) {
     bycd.2a$label=wrap.it(bycd.2a$disc,20)
     
     ## (3) plot it
-    print(ggplot(data=bycd.2a)+geom_abline(intercept=0,slope=1,color="white")+geom_abline(intercept=-0.5,slope=1,color="white")+geom_abline(intercept=0.5,slope=1,color="white")+geom_segment(aes(x=x,y=y,xend=m.x,yend=m.y),color="gray")+geom_point(aes(x=m.x,y=m.y),color="red")+labs(x="Nota média turma A",y="Nota média turma B",title=paste0("Comparação das disciplinas em ",s[[4]]," com duas turmas\n(somente turmas com mais que 4 respostas)"))+geom_text(aes(x=x,y=y,label=label),size=2,hjust=0))
+    print(ggplot(data=bycd.2a)+geom_abline(intercept=0,slope=1,color="white")+geom_abline(intercept=-0.5,slope=1,color="white")+geom_abline(intercept=0.5,slope=1,color="white")+geom_segment(aes(x=x,y=y,xend=m.x,yend=m.y),color="gray")+geom_point(aes(x=m.x,y=m.y),color="red")+labs(x="Nota média turma A",y="Nota média turma B",title=paste0("Comparação das disciplinas em ",s[[4]]," com duas turmas"))+geom_text(aes(x=x,y=y,label=label),size=2,hjust=0))
     list(bycd.3,s[[4]])
 }
 
@@ -119,8 +127,10 @@ evaluateQuestions = function(s) {
     ms=subset(melt(s[[1]]),grepl("q",variable))
     ms$variable=factor(ms$variable,ordered=T,levels=qcol)
     ms$variable20=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(wrap.it(questions,20)))
+    ms$variable30=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(wrap.it(questions,30)))
     ms$variable55=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(wrap.it(questions,55)))
     ms$dvalue=cut(ms$value,breaks=c(1:5),include.lowest=T)
+    print(paste("Value range",fivenum(ms$value)))
 
     ## (2) plot it
     ## (2.1) boxplots per question
@@ -128,7 +138,9 @@ evaluateQuestions = function(s) {
     ## (2.2) histograms per question
     ##ggplot(data=ms,aes(x=value))+geom_bar(stat="bin",fill="red")+facet_wrap(~variable55)+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),x="Nota",y="Número de respostas")#+scale_y_log10()
     ## (2.3) percentages/counts per interval
-    ggplot(data=ms,aes(x=variable20,fill=dvalue))+geom_bar(aes(y=..count../1611))+scale_y_continuous(labels=scales::percent)+coord_flip()+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),y="Percentagens",x="Questão")+scale_fill_brewer(name="Nota",palette="Oranges")#values=c("red","black","white","gray"))
+    eval(substitute(expr = {
+                        ggplot(data=ms,aes(x=variable30,fill=dvalue))+geom_bar(aes(y=..count../nr))+scale_y_continuous(labels=scales::percent)+coord_flip()+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),y="Percentagens",x="Questão")+scale_fill_brewer(name="Nota",palette="Oranges")#values=c("red","black","white","gray"))
+                    },env = list(nr=nrow(s[[1]]))))
 }
 
 ## track a list of semesters `sl` (with names `sn`) over time
@@ -161,7 +173,7 @@ trackSemesters = function(sl,sn,rank=F) {
 ######################################################################
 ## evaluations
 ######################################################################
-pdf(onefile=F,width=20,height=11)
+pdf(onefile=F,width=9,height=6)
 
 ## (1) evaluation of complete semesters
 ## NOTE: empty fields and NAs have been mapped to NA
@@ -210,13 +222,42 @@ dev.off()
 ## validation of means
 rowMeans(y15s1[[1]][,qcol],na.rm=T)
 
-## number of student feedback per course
-fb=ddply(y15s1[[1]],.(curso),summarize,N=length(turma))
-fb=ddply(y15s2[[1]],.(curso),summarize,N=length(turma))
+## program table
+program=read.table("data/cursos.dat",h=T)
 
+## number of student feedback per course
+allfb=data.frame()
+##
+fb=ddply(y14s2[[1]],.(curso),summarize,N=length(turma))
+fb$cnum=c("",13703,1259276,13717,45005,20979,110275,45020,13705,1140229,13708,45026)
+fb$sem=y14s2[[4]]
+allfb=rbind(allfb,fb)
+##
+fb=ddply(y15s1[[1]],.(curso),summarize,N=length(turma))
+fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
+fb$sem=y15s1[[4]]
+allfb=rbind(allfb,fb)
+##
+fb=ddply(y15s2[[1]],.(curso),summarize,N=length(turma))
+fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
+fb$sem=y15s2[[4]]
+allfb=rbind(allfb,fb)
+##
+allfb=merge(allfb,program)#,all.x=T)
+allfb=arrange(allfb,desc(N))
+allfb$fcname=paste0(allfb$cname,"(",sapply(allfb$ctype,FUN=function(x) { substr(x,1,1) }),")")
+##
+fcnameorder=arrange(data.frame(allfb %>% group_by(cnum,fcname) %>% summarize(N=sum(N))),N)$fcname
+allfb$fcname=factor(allfb$fcname,levels=fcnameorder)
+
+pdf("respostas.pdf",9,6)
+ggplot(data=subset(allfb,N>=10),aes(x=fcname,y=N,fill=sem))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="")+scale_fill_discrete(name="Sem.")+theme(legend.position=c(0.9,0.1))+scale_fill_brewer(name="Nota",palette="Oranges")#+scale_y_log10()##
+dev.off()
+
+print(xtable(fb),file="cursos-2015-1.tex")
 fb[order(-fb$N),]
 
 ## Open points/Ideas:
 ## 1) Overall correlation of all eleven questions (plot a matrix)?
-## 2) Seperate aspects of professors and courses?a
+## 2) Seperate aspects of professors and courses?
 ## 3) Join by "question groups"?
