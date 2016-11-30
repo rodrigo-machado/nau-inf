@@ -62,7 +62,7 @@ evaluateSemester = function(f,year,format="v1") {
     ## (3) produce a overview plot
     ##op <- par(mar = c(5,14,4,2) + 0.1)
     ##with(f,barplot(rbind(q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11),names=paste0(disc," (",N,")"),horiz=T,las=1,cex.names=0.5,col=brewer.pal(11,"Oranges"),border=NA,xlab="Nota média  (número de avaliações)",legend.text=c("1","2","3","4","5","6","7","8","9","10","11"),args.legend = list(x = "bottomright", title="Questão", ncol = 2)))
-    #### main=paste0("Evaluação geral disciplinas em ",year)
+    main.title=paste0("Avaliação geral disciplinas em ",year)
     ##abline(v=44,col="red",lwd=2)
     ##grid()
     ##par(op)
@@ -70,7 +70,7 @@ evaluateSemester = function(f,year,format="v1") {
     f$xnames=paste0(f$disc," (",f$N,")")
     f$xnames=factor(f$xnames,levels=f$xnames)
     mf=subset(melt(f),grepl("q",variable))
-    print(ggplot(data=mf,aes(x=xnames,y=value,fill=variable))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="",y="Nota média (número de avaliações)")+scale_fill_brewer(name="Questão",palette="Spectral")+geom_hline(yintercept=44,color="red")+theme(axis.text.y=element_text(size=5))+theme(legend.position="top")+guides(fill=guide_legend(nrow=1)))#+theme(legend.position=c(0.95,0.15))
+    print(ggplot(data=mf,aes(x=xnames,y=value,fill=variable))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="",y="Nota média (número de avaliações)")+scale_fill_brewer(name="Questão",palette="Spectral")+geom_hline(yintercept=44,color="red")+theme(axis.text.y=element_text(size=5))+theme(legend.position="top")+guides(fill=guide_legend(nrow=1))+labs(title=main.title))#+theme(legend.position=c(0.95,0.15))
 
     list(d,e,f,year)
 }
