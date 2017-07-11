@@ -31,16 +31,21 @@ qcol=c("q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11")
 
 ## evaluate the courses of a given semester
 ## input: a data file `f`, the name of the year, the format
-evaluateSemester = function(f,year,format="v1") {
+evaluateSemester = function(file,year,format="v1") {
     ## (0) read data, apply weights
-    d=read.csv2(f)
-    switch(format) 
+    d=read.csv2(file)
     colnames(d)=switch(format,
                 v1=c("disc","turma","curso","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2014-1, 2015-1
                 v2=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg","grp1","grp2","grp3","grp4","grp5","tot"), ## 2015-2, mine
                 v3=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), ## 2015-2
-                v4=c("curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg") ## 2016-1
-                       )
+                v4=c("curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2016-1
+                v5=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11") # 2016-2
+                )
+
+    ## (0.0) fix format
+    if (format=="v5") {
+        d$curso="CC"
+    }
     ## (0.1) sum the weights
     d$tw=apply(d[,qcol],1,function(x) { weighted.mean(!is.na(x),w,na.rm=T) })
     
@@ -181,14 +186,19 @@ y14s2=evaluateSemester("data/sai/2014-2/AvalDocPeloDisc 2014-2.csv","2014-2",for
 y15s1=evaluateSemester("data/sai/2015-1/AvalDocPeloDisc 2015-1.v1.csv","2015-1",format="v1")
 y15s2=evaluateSemester("data/sai/2015-2/ADoc Disc - Quant.csv","2015-2",format="v2")
 y16s1=evaluateSemester("data/sai/2016-1/AvalDocPeloDisc 2016-1.csv","2016-1",format="v4")
+y16s2=evaluateSemester("data/sai/2016-2/Bloco do Professor.csv","2016-2",format="v5")
 
 ## (2) compare evalutions of two semesters
 compareSemesters(y14s2,y15s1)
 compareSemesters(y14s2,y15s2)
 compareSemesters(y14s2,y16s1)
+compareSemesters(y14s2,y16s2)
 compareSemesters(y15s1,y15s2)
 compareSemesters(y15s1,y16s1)
+compareSemesters(y15s1,y16s2)
 compareSemesters(y15s2,y16s1)
+compareSemesters(y15s2,y16s2)
+compareSemesters(y16s1,y16s2)
 
 ## (3) compare classes in a semester; and compare multiple classes
 t3=compareClasses(y14s2)
@@ -199,6 +209,8 @@ t3=compareClasses(y15s2)
 ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
 t3=compareClasses(y16s1)
 ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
+t3=compareClasses(y16s2)
+ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
 
 ## (4) compares multiple classes (data from 3)
 ##ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
@@ -208,12 +220,17 @@ evaluateQuestions(y14s2)
 evaluateQuestions(y15s1)
 evaluateQuestions(y15s2)
 evaluateQuestions(y16s1)
+evaluateQuestions(y16s2)
 
 ## (6) track ranks over semesters
 trackSemesters(list(y14s2,y15s1,y15s2),c("2014-2","2015-1","2015-2"))
 trackSemesters(list(y14s2,y15s1,y15s2),c("2014-2","2015-1","2015-2"),rank=T)
 trackSemesters(list(y14s2,y15s1,y15s2,y16s1),c("2014-2","2015-1","2015-2","2016-1"))
 trackSemesters(list(y14s2,y15s1,y15s2,y16s1),c("2014-2","2015-1","2015-2","2016-1"),rank=T)
+trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2),c("2014-2","2015-1","2015-2","2016-1","2016-2"),rank=T
+## even and odd
+trackSemesters(list(y14s2,y15s2,y16s2),c("2014-2","2015-2","2016-2"),rank=T)
+trackSemesters(list(y15s1,y16s1),c("2015-1","2016-1"),rank=T)
 
 dev.off()
 
@@ -243,6 +260,16 @@ fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
 fb$sem=y15s2[[4]]
 allfb=rbind(allfb,fb)
 ##
+fb=ddply(y16s1[[1]],.(curso),summarize,N=length(turma))
+fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
+fb$sem=y16s1[[4]]
+allfb=rbind(allfb,fb)
+##
+fb=ddply(y16s2[[1]],.(curso),summarize,N=length(turma))
+fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
+fb$sem=y16s2[[4]]
+allfb=rbind(allfb,fb)
+##
 allfb=merge(allfb,program)#,all.x=T)
 allfb=arrange(allfb,desc(N))
 allfb$fcname=paste0(allfb$cname,"(",sapply(allfb$ctype,FUN=function(x) { substr(x,1,1) }),")")
@@ -251,8 +278,10 @@ fcnameorder=arrange(data.frame(allfb %>% group_by(cnum,fcname) %>% summarize(N=s
 allfb$fcname=factor(allfb$fcname,levels=fcnameorder)
 
 pdf("respostas.pdf",9,6)
-ggplot(data=subset(allfb,N>=10),aes(x=fcname,y=N,fill=sem))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="")+scale_fill_discrete(name="Sem.")+theme(legend.position=c(0.9,0.1))+scale_fill_brewer(name="Nota",palette="Oranges")#+scale_y_log10()##
+ggplot(data=subset(allfb,N>=10),aes(x=fcname,y=N,fill=sem))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="")+scale_fill_discrete(name="Sem.")+theme(legend.position=c(0.9,0.13))+scale_fill_brewer(name="Nota",palette="Oranges")#+scale_y_log10()##
 dev.off()
+
+
 
 print(xtable(fb),file="cursos-2015-1.tex")
 fb[order(-fb$N),]
