@@ -1,6 +1,7 @@
 ######################################################################
 ## Avalição do docente pelos discentes
 ######################################################################
+library(plyr)
 library(dplyr)
 library(RColorBrewer)
 library(ggplot2)
@@ -13,19 +14,32 @@ wrap.it <- function(x, len) {
   sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
 
-## the questions and their weights
+######################################################################################################################################################
+## The questions and their weights.
+##
+##   The latest decision with respect to the question is
+##     Dec. 03/2014, http://www.ufrgs.br/cpa/pessoal/decisoes/Decisao%20CPA%20No%2003-2014.pdf
+##
+##   Note that the order of the question in the data files and in this script is different from the order in the decision. We follow the order of the
+##   data files, which has been the same for 2014/2, 2015/1, 2015/2, 2016/1, 2016/2, and 2017/1.
+##
+##   The weights are the weights of "Bloco I", multiplied by their respective group weights. In 2017/1, for the first time, we received also the
+##   responses to questions 12, 13, and 14. To maintain comparability, we continue the evaluation on questions 1-11 only, but compare for 2017/1 the
+##   values of 1-11 only to the whole set of questions, to assess their correlation. In future semesters we may switch to the whole set of questions.
+######################################################################################################################################################
 questions=c(
-"analisou com os discentes os resultados das avaliações.",
-"realizou avaliações compatíveis com o que foi trabalhado na atividade de ensino.",
-"teve postura adequada diante da diversidade sociocultural.",
-"utilizou recursos e procedimentos didáticos adequados.",
-"foi assíduo e pontual.",
-"cumpriu o plano de ensino.",
-"contextualizou os conhecimentos desenvolvidos.",
-"manteve atitudes de respeito e cortesia.",
-"trabalhou com clareza e objetividade.",
-"disponibilizou tempo para atender os discentes fora da sala de aula, pessoalmente e/ou à distância.",
-"demonstrou domínio dos conteúdos.")
+"analisou com os discentes os resultados das avaliações.", # 1
+"realizou avaliações compatíveis com o que foi trabalhado na atividade de ensino.", # 2
+"teve postura adequada diante da diversidade sociocultural.", # 3
+"utilizou recursos e procedimentos didáticos adequados.", # 4
+"foi assíduo e pontual.", # 5
+"cumpriu o plano de ensino.", # 6
+"contextualizou os conhecimentos desenvolvidos.", # 7
+"manteve atitudes de respeito e cortesia.", # 8
+"trabalhou com clareza e objetividade.", # 9
+"disponibilizou tempo para atender os discentes fora da sala de aula, pessoalmente e/ou à distância.", # 10
+"demonstrou domínio dos conteúdos.") # 11
+## weights according to block I only (see above)
 w=c(0.08,0.1,0.07,0.1,0.05,0.1,0.08,0.08,0.13,0.05,0.16)
 qcol=c("q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11")
 
@@ -35,14 +49,14 @@ evaluateSemester = function(file,year,format="v1") {
     ## (0) read data, apply weights
     d=read.csv2(file)
     colnames(d)=switch(format,
-                v1=c("disc","turma","curso","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2014-1, 2015-1
+                v1=c("disc","turma","curso","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2014-2, 2015-1
                 v2=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg","grp1","grp2","grp3","grp4","grp5","tot"), ## 2015-2, mine
                 v3=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), ## 2015-2
                 v4=c("curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2016-1
-                v5=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11") # 2016-2
+                v5=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11") # 2016-2, 2017-1
                 )
 
-    ## (0.0) fix format
+    ## (0.0) fix format: there's no "curso" information from 2016-2 on
     if (format=="v5") {
         d$curso="CC"
     }
@@ -64,7 +78,7 @@ evaluateSemester = function(file,year,format="v1") {
     f=f[order(f$m),]
     f=subset(f,N>4) ## remove all courses with 4 evaluations or less
 
-    ## (3) produce a overview plot
+    ## (3) produce an overview plot
     ##op <- par(mar = c(5,14,4,2) + 0.1)
     ##with(f,barplot(rbind(q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11),names=paste0(disc," (",N,")"),horiz=T,las=1,cex.names=0.5,col=brewer.pal(11,"Oranges"),border=NA,xlab="Nota média  (número de avaliações)",legend.text=c("1","2","3","4","5","6","7","8","9","10","11"),args.legend = list(x = "bottomright", title="Questão", ncol = 2)))
     main.title=paste0("Avaliação geral disciplinas em ",year)
@@ -77,6 +91,7 @@ evaluateSemester = function(file,year,format="v1") {
     mf=subset(melt(f),grepl("q",variable))
     print(ggplot(data=mf,aes(x=xnames,y=value,fill=variable))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="",y="Nota média (número de avaliações)")+scale_fill_brewer(name="Questão",palette="Spectral")+geom_hline(yintercept=44,color="red")+theme(axis.text.y=element_text(size=5))+theme(legend.position="top")+guides(fill=guide_legend(nrow=1))+labs(title=main.title))#+theme(legend.position=c(0.95,0.15))
 
+    ## (4) return raw data, filtered 
     list(d,e,f,year)
 }
 
@@ -149,7 +164,7 @@ evaluateQuestions = function(s) {
 }
 
 ## track a list of semesters `sl` (with names `sn`) over time
-trackSemesters = function(sl,sn,rank=F) {
+trackSemesters = function(sl,sn,rank=F,comment="") {
     ## (1) merge semester, compute rank if requested, melt
     ma=sl[[1]][[3]][,c("disc","m")]
     for (s in sl[-1]) {
@@ -166,14 +181,12 @@ trackSemesters = function(sl,sn,rank=F) {
     ## (2) plot it
     g=ggplot(data=mma,aes(x=variable,y=value,color=disc,group=disc))+geom_point()+geom_line()+theme(legend.position="none")
     if (rank) {
-        g=g+geom_text(data=ma,x=1,y=-ma[,sn[1]],label=wrap.it(ma$disc,40),hjust=1.1,size=2)+geom_text(data=ma,x=length(sn),y=-ma[,sn[length(sn)]],label=wrap.it(ma$disc,40),hjust=-0.1,size=2)+scale_y_reverse()+labs(title=paste("Posições na avaliação ",sn[1],"-",sn[length(sn)],sep=""),x="Semestre",y="Posição")
+        g=g+geom_text(data=ma,x=1,y=-ma[,sn[1]],label=wrap.it(ma$disc,40),hjust=1.1,size=2)+geom_text(data=ma,x=length(sn),y=-ma[,sn[length(sn)]],label=wrap.it(ma$disc,40),hjust=-0.1,size=2)+scale_y_reverse()+labs(title=paste("Posições na avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Posição")
     } else {
-        g=g+geom_text(data=ma,x=1,y= ma[,sn[1]],label=wrap.it(ma$disc,40),hjust=1.1,size=2)+geom_text(data=ma,x=length(sn),y= ma[,sn[length(sn)]],label=wrap.it(ma$disc,40),hjust=-0.1,size=2)+labs(title=paste("Avaliação ",sn[1],"-",sn[length(sn)],sep=""),x="Semestre",y="Nota")
+        g=g+geom_text(data=ma,x=1,y= ma[,sn[1]],label=wrap.it(ma$disc,40),hjust=1.1,size=2)+geom_text(data=ma,x=length(sn),y= ma[,sn[length(sn)]],label=wrap.it(ma$disc,40),hjust=-0.1,size=2)+labs(title=paste("Avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Nota")
     }
     g
 }
-
-
 
 ######################################################################
 ## evaluations
@@ -187,18 +200,26 @@ y15s1=evaluateSemester("data/sai/2015-1/AvalDocPeloDisc 2015-1.v1.csv","2015-1",
 y15s2=evaluateSemester("data/sai/2015-2/ADoc Disc - Quant.csv","2015-2",format="v2")
 y16s1=evaluateSemester("data/sai/2016-1/AvalDocPeloDisc 2016-1.csv","2016-1",format="v4")
 y16s2=evaluateSemester("data/sai/2016-2/Bloco do Professor.csv","2016-2",format="v5")
+y17s1=evaluateSemester("data/sai/2017-1/DocenteDisc-2017-1.csv","2017-1",format="v5")
 
 ## (2) compare evalutions of two semesters
 compareSemesters(y14s2,y15s1)
 compareSemesters(y14s2,y15s2)
 compareSemesters(y14s2,y16s1)
 compareSemesters(y14s2,y16s2)
+compareSemesters(y14s2,y17s1)
+
 compareSemesters(y15s1,y15s2)
 compareSemesters(y15s1,y16s1)
 compareSemesters(y15s1,y16s2)
+compareSemesters(y15s1,y17s1)
+
 compareSemesters(y15s2,y16s1)
 compareSemesters(y15s2,y16s2)
+compareSemesters(y15s2,y17s1)
+
 compareSemesters(y16s1,y16s2)
+compareSemesters(y16s1,y17s1)
 
 ## (3) compare classes in a semester; and compare multiple classes
 t3=compareClasses(y14s2)
@@ -211,26 +232,31 @@ t3=compareClasses(y16s1)
 ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
 t3=compareClasses(y16s2)
 ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
+t3=compareClasses(y17s1)
+ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
 
-## (4) compares multiple classes (data from 3)
-##ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
-
-## (5) plots per question
+## (4) plots per question
 evaluateQuestions(y14s2)
 evaluateQuestions(y15s1)
 evaluateQuestions(y15s2)
 evaluateQuestions(y16s1)
 evaluateQuestions(y16s2)
+evaluateQuestions(y17s1)
 
 ## (6) track ranks over semesters
 trackSemesters(list(y14s2,y15s1,y15s2),c("2014-2","2015-1","2015-2"))
 trackSemesters(list(y14s2,y15s1,y15s2),c("2014-2","2015-1","2015-2"),rank=T)
 trackSemesters(list(y14s2,y15s1,y15s2,y16s1),c("2014-2","2015-1","2015-2","2016-1"))
 trackSemesters(list(y14s2,y15s1,y15s2,y16s1),c("2014-2","2015-1","2015-2","2016-1"),rank=T)
-trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2),c("2014-2","2015-1","2015-2","2016-1","2016-2"),rank=T
+trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2),c("2014-2","2015-1","2015-2","2016-1","2016-2"))
+trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2),c("2014-2","2015-1","2015-2","2016-1","2016-2"),rank=T)
+trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2,y17s1),c("2014-2","2015-1","2015-2","2016-1","2016-2","2017-1"))
+trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2,y17s1),c("2014-2","2015-1","2015-2","2016-1","2016-2","2017-1"),rank=T)
 ## even and odd
-trackSemesters(list(y14s2,y15s2,y16s2),c("2014-2","2015-2","2016-2"),rank=T)
-trackSemesters(list(y15s1,y16s1),c("2015-1","2016-1"),rank=T)
+trackSemesters(list(y15s1,y16s1,y17s1),c("2015-1","2016-1","2017-1"),comment=" (primeiro semestre)")
+trackSemesters(list(y15s1,y16s1,y17s1),c("2015-1","2016-1","2017-1"),rank=T,comment=" (primeiro semestre)")
+trackSemesters(list(y14s2,y15s2,y16s2),c("2014-2","2015-2","2016-2"),comment=" (segundo semestre)")
+trackSemesters(list(y14s2,y15s2,y16s2),c("2014-2","2015-2","2016-2"),rank=T,comment=" (segundo semestre)")
 
 dev.off()
 
