@@ -5,11 +5,12 @@ library(plyr)
 library(dplyr)
 library(RColorBrewer)
 library(ggplot2)
+library(ggrepel)
 library(reshape2)
-library(FField)
-##library(Hmisc)
+library(tibble)
 
 # wrapping function
+
 wrap.it <- function(x, len) { 
   sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
@@ -43,23 +44,46 @@ questions=c(
 w=c(0.08,0.1,0.07,0.1,0.05,0.1,0.08,0.08,0.13,0.05,0.16)
 qcol=c("q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11")
 
+fix_dots <- function(y) {
+  return(as.numeric(gsub(",",".",as.character(y))))
+}
+
+readRawData = function(file,year,format) {
+    d=read.csv2(file)
+    colnames(d)=switch(format,
+                       v1=c("disc","turma","curso","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2014-2, 2015-1
+                       v2=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg","grp1","grp2","grp3","grp4","grp5","tot"), ## 2015-2, mine
+                       v3=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), ## 2015-2
+                       v4=c("curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2016-1
+                       v5=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), # 2016-2, 2017-1
+                       v6=c("disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","tam") # 2017-2
+                       )
+    
+    ## (0.0) fix format: there's no "curso" information from 2016-2 on
+    if (format=="v5" || format=="v6") {
+        d$curso="CC"
+    }
+    d
+}
+
+readCookedData(file,year,format) {
+    file = paste("data/sai/", year, "/AvalDiscente_", year, ".csv", sep="")
+    ## (0) read data, apply weights
+    d=read.csv2(file)
+    colnames(d)=c("disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11")
+    d
+}
+
 ## evaluate the courses of a given semester
 ## input: a data file `f`, the name of the year, the format
 evaluateSemester = function(file,year,format="v1") {
     ## (0) read data, apply weights
-    d=read.csv2(file)
-    colnames(d)=switch(format,
-                v1=c("disc","turma","curso","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2014-2, 2015-1
-                v2=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg","grp1","grp2","grp3","grp4","grp5","tot"), ## 2015-2, mine
-                v3=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), ## 2015-2
-                v4=c("curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2016-1
-                v5=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11") # 2016-2, 2017-1
-                )
+    d=readRawData(file,year,format)
+    #d=readCookedData(file,year,format)
 
-    ## (0.0) fix format: there's no "curso" information from 2016-2 on
-    if (format=="v5") {
-        d$curso="CC"
-    }
+    ## (0.0) fix commas to dots
+    #d[,qcol] <- lapply(d[,qcol], function (x) sapply(x, fix_dots ))
+    
     ## (0.1) sum the weights
     d$tw=apply(d[,qcol],1,function(x) { weighted.mean(!is.na(x),w,na.rm=T) })
     
@@ -78,6 +102,11 @@ evaluateSemester = function(file,year,format="v1") {
     f=f[order(f$m),]
     f=subset(f,N>4) ## remove all courses with 4 evaluations or less
 
+    #add column qNA (sum of the medium for each NA)
+    qNA <- apply(f[,qcol], 1, function(x) sum(is.na(x)))
+    f = add_column(f, qNA, .before = "q1")
+    f$qNA <- apply(f[,c("qNA","m")], 1, function(x) prod(x))
+    
     ## (3) produce an overview plot
     ##op <- par(mar = c(5,14,4,2) + 0.1)
     ##with(f,barplot(rbind(q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11),names=paste0(disc," (",N,")"),horiz=T,las=1,cex.names=0.5,col=brewer.pal(11,"Oranges"),border=NA,xlab="Nota média  (número de avaliações)",legend.text=c("1","2","3","4","5","6","7","8","9","10","11"),args.legend = list(x = "bottomright", title="Questão", ncol = 2)))
@@ -89,7 +118,7 @@ evaluateSemester = function(file,year,format="v1") {
     f$xnames=paste0(f$disc," (",f$N,")")
     f$xnames=factor(f$xnames,levels=f$xnames)
     mf=subset(melt(f),grepl("q",variable))
-    print(ggplot(data=mf,aes(x=xnames,y=value,fill=variable))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="",y="Nota média (número de avaliações)")+scale_fill_brewer(name="Questão",palette="Spectral")+geom_hline(yintercept=44,color="red")+theme(axis.text.y=element_text(size=5))+theme(legend.position="top")+guides(fill=guide_legend(nrow=1))+labs(title=main.title))#+theme(legend.position=c(0.95,0.15))
+    print(ggplot(data=mf,aes(x=xnames,y=value,fill=variable))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="",y="Nota média (número de avaliações)")+scale_fill_brewer(name="Questão",palette="Paired", direction = -1)+geom_hline(yintercept=44,color="red")+theme(axis.text.y=element_text(size=5))+theme(legend.position="bottom", legend.key.width = unit(0.5, "line"), legend.key.height = unit(0.5, "line"),legend.text=element_text(size=10))+guides(fill=guide_legend(nrow=1, reverse = TRUE))+labs(title=main.title))#+theme(legend.position=c(0.95,0.15))
 
     ## (4) return raw data, filtered 
     list(d,e,f,year)
@@ -102,18 +131,19 @@ compareSemesters = function(s1,s2) {
     r2=data.frame(disc=s2[[3]]$disc,rank=1:nrow(s2[[3]]),m=s2[[3]]$m)
     ranks=merge(r1,r2,by="disc",all=T)
     ranks=subset(ranks,!is.na(m.x)&!is.na(m.y))
-
-    ## (2) place the labels
-    x.fact <- 100 / max(ranks$m.x)
-    y.fact <- 100 / max(ranks$m.y)
-    coords <- with(ranks,FFieldPtRep(coords = cbind(m.x*x.fact,  m.y*y.fact), rep.fact = 2, iter.max=100))
-    ranks$x=coords$x/x.fact
-    ranks$y=coords$y/y.fact
     ranks$label=wrap.it(ranks$disc,20)
-    
-    ## (3) create a plot
-    ggplot(data=ranks)+geom_abline(intercept=0,slope=1,color="white")+geom_abline(intercept=-0.5,slope=1,color="white")+geom_abline(intercept=0.5,slope=1,color="white")+geom_segment(data=ranks,aes(x=x,y=y,xend=m.x,yend=m.y),color="gray")+geom_point(aes(x=m.x,y=m.y),color="red")+labs(x=paste0("Média em ",s1[[4]]),y=paste0("Média em ",s2[[4]]),title=paste0("Comparação dos semestres ",s1[[4]]," e ",s2[[4]]))+geom_text(aes(x=x,y=y,label=label),size=2,hjust=0)
-    ## +xlim(c(2,5))+ylim(c(2,5))
+
+    ## (2) create a plot
+    ggplot(data=ranks)+
+        geom_abline(intercept=0,slope=1,color="lightpink1",size=0.2)+
+        geom_abline(intercept=-0.5,slope=1,color="lightpink2",size=0.2)+
+        geom_abline(intercept=0.5,slope=1,color="lightpink2",size=0.2)+
+        geom_point(aes(x=m.x,y=m.y),color="red")+
+        labs(x=paste0("Média em ",s1[[4]]),y=paste0("Média em ",s2[[4]]),title=paste0("Comparação dos semestres ",s1[[4]]," e ",s2[[4]]))+
+        geom_text_repel(aes(x = m.x, y = m.y, label = label), color = "purple4",
+                        size=2, box.padding = unit(0.06, "lines"),
+                        arrow = arrow(length = unit(0.01, 'npc'), ends = "first"),
+                        force=1, segment.color = "grey40", segment.alpha = 0.70, min.segment.length = 0)
 }
 
 ## compare classes for semester `s`
@@ -129,18 +159,22 @@ compareClasses = function(s) {
 
     ## (2) extract coordinates, layout them
     bycd.2a=ddply(bycd.2,.(disc),summarize,m.x=m[1],m.y=m[2])
-    x.fact <- 100 / max(bycd.2a$m.x)
-    y.fact <- 100 / max(bycd.2a$m.y)
-    coords <- with(bycd.2a,FFieldPtRep(coords = cbind(m.x*x.fact,  m.y*y.fact), rep.fact = 2, iter.max=100))
-    bycd.2a$x=coords$x/x.fact
-    bycd.2a$y=coords$y/y.fact
     bycd.2a$label=wrap.it(bycd.2a$disc,20)
     
     ## (3) plot it
-    print(ggplot(data=bycd.2a)+geom_abline(intercept=0,slope=1,color="white")+geom_abline(intercept=-0.5,slope=1,color="white")+geom_abline(intercept=0.5,slope=1,color="white")+geom_segment(aes(x=x,y=y,xend=m.x,yend=m.y),color="gray")+geom_point(aes(x=m.x,y=m.y),color="red")+labs(x="Nota média turma A",y="Nota média turma B",title=paste0("Comparação das disciplinas em ",s[[4]]," com duas turmas"))+geom_text(aes(x=x,y=y,label=label),size=2,hjust=0))
+    print(ggplot(data=bycd.2a)+
+          geom_abline(intercept=0,slope=1,color="lightpink1",size=0.2)+
+          geom_abline(intercept=-0.5,slope=1,color="lightpink2",size=0.2)+
+          geom_abline(intercept=0.5,slope=1,color="lightpink2",size=0.2)+
+          geom_point(aes(x=m.x,y=m.y),color="red")+
+          labs(x="Nota média turma A",y="Nota média turma B",title=paste0("Comparação das disciplinas em ",s[[4]]," com duas turmas"))+
+          geom_text_repel(aes(x = m.x, y = m.y, label = label), color = "purple4",
+                          size=2, box.padding = unit(0.06, "lines"),
+                          arrow = arrow(length = unit(0.01, 'npc'), ends = "first"),
+                          force=1, segment.color = "grey40", segment.alpha = 0.70, min.segment.length = 0))
+    
     list(bycd.3,s[[4]])
 }
-
 
 evaluateQuestions = function(s) {
     ## (1) melt it, define a couple of auxiliary factors, cut it
@@ -150,7 +184,7 @@ evaluateQuestions = function(s) {
     ms$variable30=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(wrap.it(questions,30)))
     ms$variable55=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(wrap.it(questions,55)))
     ms$dvalue=cut(ms$value,breaks=c(1:5),include.lowest=T)
-    print(paste("Value range",fivenum(ms$value)))
+    #print(paste("Value range",fivenum(ms$value)))
 
     ## (2) plot it
     ## (2.1) boxplots per question
@@ -163,20 +197,23 @@ evaluateQuestions = function(s) {
                     },env = list(nr=nrow(s[[1]]))))
 }
 
-## track a list of semesters `sl` (with names `sn`) over time
-trackSemesters = function(sl,sn,rank=F,comment="") {
+## track a list of semesters `sl` over time
+trackSemesters = function(sl,rank=F,comment="") {
     ## (1) merge semester, compute rank if requested, melt
     ma=sl[[1]][[3]][,c("disc","m")]
+    colnames(ma)[colnames(ma) == 'm'] <- sl[[1]][[4]] ##rename col to year
     for (s in sl[-1]) {
         ma=merge(ma,s[[3]][,c("disc","m")],by="disc")
+        colnames(ma)[colnames(ma) == 'm'] <- s[[4]] ##rename col to year
     }
-    colnames(ma)=c("disc",sn)
+    sn = colnames(ma[-1]) ##Semester's year's name
+    
     if (rank) {
         for (cn in sn) {
             ma[[cn]]=nrow(ma)+1-rank(ma[[cn]],na.last="keep")
         }
     }
-    mma=melt(ma)
+    mma=melt(ma, id.vars = "disc")
 
     ## (2) plot it
     g=ggplot(data=mma,aes(x=variable,y=value,color=disc,group=disc))+geom_point()+geom_line()+theme(legend.position="none")
@@ -201,62 +238,42 @@ y15s2=evaluateSemester("data/sai/2015-2/ADoc Disc - Quant.csv","2015-2",format="
 y16s1=evaluateSemester("data/sai/2016-1/AvalDocPeloDisc 2016-1.csv","2016-1",format="v4")
 y16s2=evaluateSemester("data/sai/2016-2/Bloco do Professor.csv","2016-2",format="v5")
 y17s1=evaluateSemester("data/sai/2017-1/DocenteDisc-2017-1.csv","2017-1",format="v5")
+y17s2=evaluateSemester("data/sai/2017-2/AvalDiscente_2017-2.csv","2017-2",format="v6")
 
-## (2) compare evalutions of two semesters
-compareSemesters(y14s2,y15s1)
-compareSemesters(y14s2,y15s2)
-compareSemesters(y14s2,y16s1)
-compareSemesters(y14s2,y16s2)
-compareSemesters(y14s2,y17s1)
+allsemesters=list(y14s2,y15s1,y15s2,y16s1,y17s1,y17s2)
 
-compareSemesters(y15s1,y15s2)
-compareSemesters(y15s1,y16s1)
-compareSemesters(y15s1,y16s2)
-compareSemesters(y15s1,y17s1)
-
-compareSemesters(y15s2,y16s1)
-compareSemesters(y15s2,y16s2)
-compareSemesters(y15s2,y17s1)
-
-compareSemesters(y16s1,y16s2)
-compareSemesters(y16s1,y17s1)
+## (2) compare evaluations of two semesters
+for (s1 in 1:(length(allsemesters)-1)) {
+    for (s2 in (s1+1):length(allsemesters)) {
+        print(compareSemesters(allsemesters[[s1]],allsemesters[[s2]]))
+        readline(prompt="Press [enter] to continue")
+    }
+}
 
 ## (3) compare classes in a semester; and compare multiple classes
-t3=compareClasses(y14s2)
-ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
-t3=compareClasses(y15s1)
-ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
-t3=compareClasses(y15s2)
-ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
-t3=compareClasses(y16s1)
-ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
-t3=compareClasses(y16s2)
-ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
-t3=compareClasses(y17s1)
-ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina")
+for (s in 1:length(allsemesters)) {
+    t3=compareClasses(allsemesters[[s]])
+    print(ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina"))
+    readline(prompt="Press [enter] to continue")
+}
 
 ## (4) plots per question
-evaluateQuestions(y14s2)
-evaluateQuestions(y15s1)
-evaluateQuestions(y15s2)
-evaluateQuestions(y16s1)
-evaluateQuestions(y16s2)
-evaluateQuestions(y17s1)
+for (s in 1:length(allsemesters)) {
+    print(evaluateQuestions(allsemesters[[s]]))
+    readline(prompt="Press [enter] to continue")
+}
 
-## (6) track ranks over semesters
-trackSemesters(list(y14s2,y15s1,y15s2),c("2014-2","2015-1","2015-2"))
-trackSemesters(list(y14s2,y15s1,y15s2),c("2014-2","2015-1","2015-2"),rank=T)
-trackSemesters(list(y14s2,y15s1,y15s2,y16s1),c("2014-2","2015-1","2015-2","2016-1"))
-trackSemesters(list(y14s2,y15s1,y15s2,y16s1),c("2014-2","2015-1","2015-2","2016-1"),rank=T)
-trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2),c("2014-2","2015-1","2015-2","2016-1","2016-2"))
-trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2),c("2014-2","2015-1","2015-2","2016-1","2016-2"),rank=T)
-trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2,y17s1),c("2014-2","2015-1","2015-2","2016-1","2016-2","2017-1"))
-trackSemesters(list(y14s2,y15s1,y15s2,y16s1,y16s2,y17s1),c("2014-2","2015-1","2015-2","2016-1","2016-2","2017-1"),rank=T)
-## even and odd
-trackSemesters(list(y15s1,y16s1,y17s1),c("2015-1","2016-1","2017-1"),comment=" (primeiro semestre)")
-trackSemesters(list(y15s1,y16s1,y17s1),c("2015-1","2016-1","2017-1"),rank=T,comment=" (primeiro semestre)")
-trackSemesters(list(y14s2,y15s2,y16s2),c("2014-2","2015-2","2016-2"),comment=" (segundo semestre)")
-trackSemesters(list(y14s2,y15s2,y16s2),c("2014-2","2015-2","2016-2"),rank=T,comment=" (segundo semestre)")
+## (5) track ranks over semesters
+evensemesters=list(y14s2,y15s2,y16s2,y17s2)
+trackSemesters(evensemesters)
+trackSemesters(evensemesters,rank=T)
+
+oddsemesters=list(y15s1,y16s1,y17s1)
+trackSemesters(oddsemesters)
+trackSemesters(oddsemesters,rank=T)
+
+trackSemesters(allsemesters)
+trackSemesters(allsemesters,rank=T)
 
 dev.off()
 
@@ -296,6 +313,11 @@ fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
 fb$sem=y16s2[[4]]
 allfb=rbind(allfb,fb)
 ##
+fb=ddply(y17s1[[1]],.(curso),summarize,N=length(turma))
+fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
+fb$sem=y17s1[[4]]
+allfb=rbind(allfb,fb)
+##
 allfb=merge(allfb,program)#,all.x=T)
 allfb=arrange(allfb,desc(N))
 allfb$fcname=paste0(allfb$cname,"(",sapply(allfb$ctype,FUN=function(x) { substr(x,1,1) }),")")
@@ -306,8 +328,6 @@ allfb$fcname=factor(allfb$fcname,levels=fcnameorder)
 pdf("respostas.pdf",9,6)
 ggplot(data=subset(allfb,N>=10),aes(x=fcname,y=N,fill=sem))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="")+scale_fill_discrete(name="Sem.")+theme(legend.position=c(0.9,0.13))+scale_fill_brewer(name="Nota",palette="Oranges")#+scale_y_log10()##
 dev.off()
-
-
 
 print(xtable(fb),file="cursos-2015-1.tex")
 fb[order(-fb$N),]
