@@ -1,7 +1,6 @@
 ######################################################################
 ## Avalição do docente pelos discentes
 ######################################################################
-library(plyr)
 library(dplyr)
 library(RColorBrewer)
 library(ggplot2)
@@ -9,8 +8,10 @@ library(ggrepel)
 library(reshape2)
 library(tibble)
 
-# wrapping function
+# general information about lectures
+dinfo=read.table("data/other/disciplinas.dat",h=T)
 
+# wrapping function
 wrap.it <- function(x, len) { 
   sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
 }
@@ -55,18 +56,19 @@ readRawData = function(file,year,format) {
                        v2=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg","grp1","grp2","grp3","grp4","grp5","tot"), ## 2015-2, mine
                        v3=c("unid","dept","curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), ## 2015-2
                        v4=c("curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2016-1
-                       v5=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), # 2016-2, 2017-1
-                       v6=c("disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","tam") # 2017-2
+                       v5=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), # 2016-2
+                       v6=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","q12","q13","q14"), # 2017-1
+                       v7=c("disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","tam") # 2017-2
                        )
     
     ## (0.0) fix format: there's no "curso" information from 2016-2 on
-    if (format=="v5" || format=="v6") {
+    if (format=="v5" || format=="v6" || format=="v7") {
         d$curso="CC"
     }
     d
 }
 
-readCookedData(file,year,format) {
+readCookedData = function(file,year,format) {
     file = paste("data/sai/", year, "/AvalDiscente_", year, ".csv", sep="")
     ## (0) read data, apply weights
     d=read.csv2(file)
@@ -76,7 +78,7 @@ readCookedData(file,year,format) {
 
 ## evaluate the courses of a given semester
 ## input: a data file `f`, the name of the year, the format
-evaluateSemester = function(file,year,format="v1") {
+evaluateSemester = function(file,year,format="v1",minResponsesProgram=10,minResponsesCourse=5) {
     ## (0) read data, apply weights
     d=readRawData(file,year,format)
     #d=readCookedData(file,year,format)
@@ -86,21 +88,20 @@ evaluateSemester = function(file,year,format="v1") {
     
     ## (0.1) sum the weights
     d$tw=apply(d[,qcol],1,function(x) { weighted.mean(!is.na(x),w,na.rm=T) })
-    
     ## (0.2) for verification: compute the means
     d$nm=apply(d[,qcol],1,function(x) { sum(x*w,na.rm=T) })
     d$nm=d$nm/d$tw
     d$nm[d$tw==0]=NA
     
     ## (1) clean up data: remove all programs with less than 10 responses
-    fewR=subset(ddply(d,.(curso),summarize,N=length(turma)),N<10)$curso
+    fewR=(d %>% group_by(curso) %>% summarize(N=length(turma)) %>% filter(N<minResponsesProgram))$curso
     e=subset(d,!(curso %in% fewR))
-
+    
     ## (2) aggregate by courses
-    f=ddply(e,.(disc),summarize,N=length(q1),q1=mean(q1,na.rm=T),q2=mean(q2,na.rm=T),q3=mean(q3,na.rm=T),q4=mean(q4,na.rm=T),q5=mean(q5,na.rm=T),q6=mean(q6,na.rm=T),q7=mean(q7,na.rm=T),q8=mean(q8,na.rm=T),q9=mean(q9,na.rm=T),q10=mean(q10,na.rm=T),q11=mean(q11,na.rm=T))
+    f = e %>% group_by(disc) %>% summarize(N=length(q1),q1=mean(q1,na.rm=T),q2=mean(q2,na.rm=T),q3=mean(q3,na.rm=T),q4=mean(q4,na.rm=T),q5=mean(q5,na.rm=T),q6=mean(q6,na.rm=T),q7=mean(q7,na.rm=T),q8=mean(q8,na.rm=T),q9=mean(q9,na.rm=T),q10=mean(q10,na.rm=T),q11=mean(q11,na.rm=T))
     f$m=rowMeans(f[,qcol],na.rm=T)
     f=f[order(f$m),]
-    f=subset(f,N>4) ## remove all courses with 4 evaluations or less
+    f=subset(f,N>=minResponsesCourse) ## remove all courses with 4 evaluations or less
 
     #add column qNA (sum of the medium for each NA)
     qNA <- apply(f[,qcol], 1, function(x) sum(is.na(x)))
@@ -148,17 +149,17 @@ compareSemesters = function(s1,s2) {
 
 ## compare classes for semester `s`
 ## goal: check if there are significant discrepancies in classes
-compareClasses = function(s) {
+compareClasses = function(s,minResponsesCourse=5) {
     ## (1) aggregate data, count number of classes
-    bycd=ddply(s[[2]],.(disc,turma),summarize,N=length(q1),q1=mean(q1,na.rm=T),q2=mean(q2,na.rm=T),q3=mean(q3,na.rm=T),q4=mean(q4,na.rm=T),q5=mean(q5,na.rm=T),q6=mean(q6,na.rm=T),q7=mean(q7,na.rm=T),q8=mean(q8,na.rm=T),q9=mean(q9,na.rm=T),q10=mean(q10,na.rm=T),q11=mean(q11,na.rm=T))
+    bycd = s[[2]] %>% group_by(disc,turma) %>% summarize(N=length(q1),q1=mean(q1,na.rm=T),q2=mean(q2,na.rm=T),q3=mean(q3,na.rm=T),q4=mean(q4,na.rm=T),q5=mean(q5,na.rm=T),q6=mean(q6,na.rm=T),q7=mean(q7,na.rm=T),q8=mean(q8,na.rm=T),q9=mean(q9,na.rm=T),q10=mean(q10,na.rm=T),q11=mean(q11,na.rm=T))
     bycd$m=rowMeans(bycd[,qcol],na.rm=T)
-    bycd=subset(bycd,N>4)
-    bycd=merge(bycd,ddply(bycd,.(disc),summarize,Nt=length(N)),by="disc")
+    bycd=subset(bycd,N>=minResponsesCourse)
+    bycd=merge(bycd,bycd %>% group_by(disc) %>% summarize(Nt=length(N)),by="disc")
     bycd.2=subset(bycd,Nt==2)
     bycd.3=subset(bycd,Nt>2)
 
     ## (2) extract coordinates, layout them
-    bycd.2a=ddply(bycd.2,.(disc),summarize,m.x=m[1],m.y=m[2])
+    bycd.2a=bycd.2 %>% group_by(disc) %>% summarize(m.x=m[1],m.y=m[2])
     bycd.2a$label=wrap.it(bycd.2a$disc,20)
     
     ## (3) plot it
@@ -198,8 +199,10 @@ evaluateQuestions = function(s) {
 }
 
 ## track a list of semesters `sl` over time
-trackSemesters = function(sl,rank=F,comment="") {
-    ## (1) merge semester, compute rank if requested, melt
+## show only courses with at least one evaluation below `onlybelow`
+trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
+    restrictions=list()
+    ## (1) merge semester, compute rank if requested
     ma=sl[[1]][[3]][,c("disc","m")]
     colnames(ma)[colnames(ma) == 'm'] <- sl[[1]][[4]] ##rename col to year
     for (s in sl[-1]) {
@@ -207,20 +210,45 @@ trackSemesters = function(sl,rank=F,comment="") {
         colnames(ma)[colnames(ma) == 'm'] <- s[[4]] ##rename col to year
     }
     sn = colnames(ma[-1]) ##Semester's year's name
-    
+    ma = ma %>% merge(dinfo %>% select(-theory,-semester))
+
+    ## (2) filter for mandatory, low evaluations, apply rank
+    if (onlyMandatory) {
+        ma = ma %>% filter(mandatory==T)
+        restrictions=c(restrictions,"obrigatórias")
+    }
+    selectedCourses=apply(ma[,sn],1,function(x) { min(x)<onlybelow })
+    if (onlybelow<5) {
+        restrictions=c(restrictions,paste("com pelo menos uma nota média menor que ",onlybelow,sep=""))
+    }    
     if (rank) {
         for (cn in sn) {
             ma[[cn]]=nrow(ma)+1-rank(ma[[cn]],na.last="keep")
         }
     }
-    mma=melt(ma, id.vars = "disc")
-
-    ## (2) plot it
+    ma = ma[selectedCourses,]
+    mma=melt(ma, id.vars = c("disc","mandatory"))
+    ma = ma %>% filter(disc %in% mma$disc)
+    
+    ## (3) plot it
     g=ggplot(data=mma,aes(x=variable,y=value,color=disc,group=disc))+geom_point()+geom_line()+theme(legend.position="none")
-    if (rank) {
-        g=g+geom_text(data=ma,x=1,y=-ma[,sn[1]],label=wrap.it(ma$disc,40),hjust=1.1,size=2)+geom_text(data=ma,x=length(sn),y=-ma[,sn[length(sn)]],label=wrap.it(ma$disc,40),hjust=-0.1,size=2)+scale_y_reverse()+labs(title=paste("Posições na avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Posição")
+    if (onlyMandatory) {
+        labels=wrap.it(ma$disc,30)
     } else {
-        g=g+geom_text(data=ma,x=1,y= ma[,sn[1]],label=wrap.it(ma$disc,40),hjust=1.1,size=2)+geom_text(data=ma,x=length(sn),y= ma[,sn[length(sn)]],label=wrap.it(ma$disc,40),hjust=-0.1,size=2)+labs(title=paste("Avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Nota")
+        labels=wrap.it(paste(ma$disc,ifelse(ma$mandatory,"","(E)")),30)
+    }
+    if (length(restrictions)>0) {
+        comment=paste(comment," (Somente disciplinas ",paste(restrictions,collapse=" "),")",sep="")
+    }
+    if (rank) {
+        g=g+geom_text_repel(data=ma,x=1,y=-ma[,sn[1]],label=labels,hjust=1.1,size=2)+
+            geom_text_repel(data=ma,x=length(sn),y=-ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
+            scale_y_reverse()+
+            labs(title=paste("Posições na avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Posição")
+    } else {
+        g=g+geom_text_repel(data=ma,x=1,y= ma[,sn[1]],label=labels,hjust=1.1,size=2)+
+            geom_text_repel(data=ma,x=length(sn),y= ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
+            labs(title=paste("Avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Nota")
     }
     g
 }
@@ -237,8 +265,8 @@ y15s1=evaluateSemester("data/sai/2015-1/AvalDocPeloDisc 2015-1.v1.csv","2015-1",
 y15s2=evaluateSemester("data/sai/2015-2/ADoc Disc - Quant.csv","2015-2",format="v2")
 y16s1=evaluateSemester("data/sai/2016-1/AvalDocPeloDisc 2016-1.csv","2016-1",format="v4")
 y16s2=evaluateSemester("data/sai/2016-2/Bloco do Professor.csv","2016-2",format="v5")
-y17s1=evaluateSemester("data/sai/2017-1/DocenteDisc-2017-1.csv","2017-1",format="v5")
-y17s2=evaluateSemester("data/sai/2017-2/AvalDiscente_2017-2.csv","2017-2",format="v6")
+y17s1=evaluateSemester("data/sai/2017-1/DocenteDisc-2017-1.csv","2017-1",format="v6")
+y17s2=evaluateSemester("data/sai/2017-2/AvalDiscente_2017-2.csv","2017-2",format="v7")
 
 allsemesters=list(y14s2,y15s1,y15s2,y16s1,y17s1,y17s2)
 
@@ -265,15 +293,17 @@ for (s in 1:length(allsemesters)) {
 
 ## (5) track ranks over semesters
 evensemesters=list(y14s2,y15s2,y16s2,y17s2)
-trackSemesters(evensemesters)
-trackSemesters(evensemesters,rank=T)
-
 oddsemesters=list(y15s1,y16s1,y17s1)
-trackSemesters(oddsemesters)
-trackSemesters(oddsemesters,rank=T)
-
-trackSemesters(allsemesters)
-trackSemesters(allsemesters,rank=T)
+for (limit in c(4,5)) {
+    trackSemesters(evensemesters,onlybelow=limit)
+    trackSemesters(evensemesters,rank=T,onlybelow=limit)
+    
+    trackSemesters(oddsemesters,onlybelow=limit)
+    trackSemesters(oddsemesters,rank=T,onlybelow=limit)
+    
+    trackSemesters(allsemesters,onlybelow=limit)
+    trackSemesters(allsemesters,rank=T,onlybelow=limit)
+}
 
 dev.off()
 
