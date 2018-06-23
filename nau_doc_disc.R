@@ -17,7 +17,7 @@ wrap.it <- function(x, len) {
 ######################################################################################################################################################
 ## The questions and their weights.
 ##
-##   The latest decision with respect to the question is
+##   The latest decision with respect to the questions is
 ##     Dec. 03/2014, http://www.ufrgs.br/cpa/pessoal/decisoes/Decisao%20CPA%20No%2003-2014.pdf
 ##
 ##   Note that the order of the question in the data files and in this script is different from the order in the decision. We follow the order of the
