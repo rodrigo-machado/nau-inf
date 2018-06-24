@@ -309,44 +309,25 @@ dev.off()
 
 #################### leftovers
 
-## validation of means
-rowMeans(y15s1[[1]][,qcol],na.rm=T)
+########## (1) evaluation by program over the semesters (less useful, since from 2016/1 on, we don't have any information about the other programs)
 
 ## program table
 program=read.table("data/cursos.dat",h=T)
 
 ## number of student feedback per course
 allfb=data.frame()
-##
-fb=ddply(y14s2[[1]],.(curso),summarize,N=length(turma))
+## first semester is different
+fb=y14s2[[1]] %>% group_by(curso) %>% summarize(N=length(turma))
 fb$cnum=c("",13703,1259276,13717,45005,20979,110275,45020,13705,1140229,13708,45026)
 fb$sem=y14s2[[4]]
 allfb=rbind(allfb,fb)
-##
-fb=ddply(y15s1[[1]],.(curso),summarize,N=length(turma))
-fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
-fb$sem=y15s1[[4]]
-allfb=rbind(allfb,fb)
-##
-fb=ddply(y15s2[[1]],.(curso),summarize,N=length(turma))
-fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
-fb$sem=y15s2[[4]]
-allfb=rbind(allfb,fb)
-##
-fb=ddply(y16s1[[1]],.(curso),summarize,N=length(turma))
-fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
-fb$sem=y16s1[[4]]
-allfb=rbind(allfb,fb)
-##
-fb=ddply(y16s2[[1]],.(curso),summarize,N=length(turma))
-fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
-fb$sem=y16s2[[4]]
-allfb=rbind(allfb,fb)
-##
-fb=ddply(y17s1[[1]],.(curso),summarize,N=length(turma))
-fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
-fb$sem=y17s1[[4]]
-allfb=rbind(allfb,fb)
+## process remaining semesters
+for (s in 2:(length(allsemesters))) {
+    fb=(allsemesters[[s]])[[1]] %>% group_by(curso) %>% summarize(N=length(turma))
+    fb$cnum=sub(".+\\((.+)\\)","\\1",fb$curso,perl=T)
+    fb$sem=(allsemesters[[s]])[[4]]
+    allfb=rbind(allfb,fb)
+}
 ##
 allfb=merge(allfb,program)#,all.x=T)
 allfb=arrange(allfb,desc(N))
