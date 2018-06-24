@@ -1,5 +1,5 @@
 ######################################################################
-## Avalição do docente pelos discentes
+## Avaliação do docente pelos discentes
 ######################################################################
 library(dplyr)
 library(RColorBrewer)
@@ -190,8 +190,8 @@ evaluateQuestions = function(s) {
     ##ggplot(data=ms,aes(x=value))+geom_bar(stat="bin",fill="red")+facet_wrap(~variable55)+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),x="Nota",y="Número de respostas")#+scale_y_log10()
     ## (2.3) percentages/counts per interval
     eval(substitute(expr = {
-                        ggplot(data=ms,aes(x=variable30,fill=dvalue))+geom_bar(aes(y=..count../nr))+scale_y_continuous(labels=scales::percent)+coord_flip()+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),y="Percentagens",x="Questão")+scale_fill_brewer(name="Nota",palette="Oranges")#values=c("red","black","white","gray"))
-                    },env = list(nr=nrow(s[[1]]))))
+        ggplot(data=ms,aes(x=variable30,fill=dvalue))+geom_bar(aes(y=..count../nr))+scale_y_continuous(labels=scales::percent)+coord_flip()+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),y="Percentagens",x="Questão")+scale_fill_brewer(name="Nota",palette="Oranges")#values=c("red","black","white","gray"))
+    },env = list(nr=nrow(s[[1]]))))
 }
 
 ## track a list of semesters `sl` over time
