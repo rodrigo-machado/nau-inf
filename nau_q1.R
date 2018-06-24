@@ -6,6 +6,7 @@ library(RColorBrewer)
 library(ggplot2)
 library(GGally)
 library(gridExtra)
+library(egg)
 
 questions=paste("Q",1:10,sep="")
 
@@ -30,15 +31,16 @@ pdf(width=18,height=12)
 colors<-brewer.pal(10,"Spectral")
 plots = list()
 for (i in 1:10) {
-    plots[[i]]=ggplot(data=subset(q,q==paste("Q",i,sep="")))+
+    theq=subset(q,q==paste("Q",i,sep=""))
+    plots[[i]]=ggplot(data=theq)+
         geom_bar(aes(x=cat,weight=nrep),fill=colors[i])+
         geom_text(aes(x=cat,y=nrep+2,label=sprintf("%.1f%%",pct)),size=1.75,hjust=0,color="black")+
-        labs(title=paste(Q$title[i]," (",q$N[1]," respostas)",sep=""),x="",y="Número de respostas")+
-        coord_flip()
+        labs(title=paste(Q$title[i]," (",theq$N[1]," respostas)",sep=""),x="",y="Número de respostas")+
+        coord_flip()+ylim(0,420)
 }
-grid.arrange(grobs=plots,nrow=5,ncol=2)
-
+ggarrange(plots=plots,nrow=5,ncol=2)
+#grid.arrange(grobs=plots,nrow=5,ncol=2)
+#ggmatrix(plots=plots,5,2,xlab="Número de respostas")
 
 dev.off()
-
 
