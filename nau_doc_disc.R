@@ -7,14 +7,10 @@ library(ggplot2)
 library(ggrepel)
 library(reshape2)
 library(tibble)
+library(stringr)
 
 # general information about lectures
 dinfo=read.table("data/other/disciplinas.dat",h=T)
-
-# wrapping function
-wrap.it <- function(x, len) { 
-  sapply(x, function(y) paste(strwrap(y, len), collapse = "\n"), USE.NAMES = FALSE)
-}
 
 ######################################################################################################################################################
 ## The questions and their weights.
@@ -132,7 +128,7 @@ compareSemesters = function(s1,s2) {
     r2=data.frame(disc=s2[[3]]$disc,rank=1:nrow(s2[[3]]),m=s2[[3]]$m)
     ranks=merge(r1,r2,by="disc",all=T)
     ranks=subset(ranks,!is.na(m.x)&!is.na(m.y))
-    ranks$label=wrap.it(ranks$disc,20)
+    ranks$label=str_wrap(ranks$disc,20)
 
     ## (2) create a plot
     ggplot(data=ranks)+
@@ -160,7 +156,7 @@ compareClasses = function(s,minResponsesCourse=5) {
 
     ## (2) extract coordinates, layout them
     bycd.2a=bycd.2 %>% group_by(disc) %>% summarize(m.x=m[1],m.y=m[2])
-    bycd.2a$label=wrap.it(bycd.2a$disc,20)
+    bycd.2a$label=str_wrap(bycd.2a$disc,20)
     
     ## (3) plot it
     print(ggplot(data=bycd.2a)+
@@ -181,9 +177,9 @@ evaluateQuestions = function(s) {
     ## (1) melt it, define a couple of auxiliary factors, cut it
     ms=subset(melt(s[[1]]),grepl("q",variable))
     ms$variable=factor(ms$variable,ordered=T,levels=qcol)
-    ms$variable20=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(wrap.it(questions,20)))
-    ms$variable30=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(wrap.it(questions,30)))
-    ms$variable55=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(wrap.it(questions,55)))
+    ms$variable20=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(str_wrap(questions,20)))
+    ms$variable30=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(str_wrap(questions,30)))
+    ms$variable55=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(str_wrap(questions,55)))
     ms$dvalue=cut(ms$value,breaks=c(1:5),include.lowest=T)
     #print(paste("Value range",fivenum(ms$value)))
 
@@ -220,7 +216,10 @@ trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
     selectedCourses=apply(ma[,sn],1,function(x) { min(x)<onlybelow })
     if (onlybelow<5) {
         restrictions=c(restrictions,paste("com pelo menos uma nota média menor que ",onlybelow,sep=""))
-    }    
+        label_function = geom_text_repel
+    } else {
+        label_function = geom_text
+    }
     if (rank) {
         for (cn in sn) {
             ma[[cn]]=nrow(ma)+1-rank(ma[[cn]],na.last="keep")
@@ -229,25 +228,29 @@ trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
     ma = ma[selectedCourses,]
     mma=melt(ma, id.vars = c("disc","mandatory"))
     ma = ma %>% filter(disc %in% mma$disc)
+
+    mma$variable=factor(mma$variable,levels=c("llp",levels(mma$variable),"rlp"))
+    mma=rbind(mma,data.frame(disc=" ",mandatory=T,variable="llp",value=NA))
+    mma=rbind(mma,data.frame(disc=" ",mandatory=T,variable="rlp",value=NA))
     
     ## (3) plot it
-    g=ggplot(data=mma,aes(x=variable,y=value,color=disc,group=disc))+geom_point()+geom_line()+theme(legend.position="none")
+    g=ggplot(data=mma,aes(x=variable,y=value,color=disc,group=disc))+geom_point()+geom_line()+theme(legend.position="none")+scale_x_discrete(breaks=sn,labels=sn)
     if (onlyMandatory) {
-        labels=wrap.it(ma$disc,30)
+        labels=str_wrap(ma$disc,80)
     } else {
-        labels=wrap.it(paste(ma$disc,ifelse(ma$mandatory,"","(E)")),30)
+        labels=str_wrap(paste(ma$disc,ifelse(ma$mandatory,"","(E)")),80)
     }
     if (length(restrictions)>0) {
         comment=paste(comment," (Somente disciplinas ",paste(restrictions,collapse=" "),")",sep="")
     }
     if (rank) {
-        g=g+geom_text_repel(data=ma,x=1,y=-ma[,sn[1]],label=labels,hjust=1.1,size=2)+
-            geom_text_repel(data=ma,x=length(sn),y=-ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
+        g=g+label_function(data=ma,x=2,y=-ma[,sn[1]],label=labels,hjust=1.1,size=2)+
+            label_function(data=ma,x=length(sn)+1,y=-ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
             scale_y_reverse()+
             labs(title=paste("Posições na avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Posição")
     } else {
-        g=g+geom_text_repel(data=ma,x=1,y= ma[,sn[1]],label=labels,hjust=1.1,size=2)+
-            geom_text_repel(data=ma,x=length(sn),y= ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
+        g=g+label_function(data=ma,x=2,y= ma[,sn[1]],label=labels,hjust=1.1,size=2)+
+            label_function(data=ma,x=length(sn)+1,y= ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
             labs(title=paste("Avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Nota")
     }
     g
@@ -256,7 +259,7 @@ trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
 ######################################################################
 ## evaluations
 ######################################################################
-pdf(onefile=F,width=9,height=6)
+pdf(onefile=T,width=9,height=6)
 
 ## (1) evaluation of complete semesters
 ## NOTE: empty fields and NAs have been mapped to NA
@@ -274,35 +277,35 @@ allsemesters=list(y14s2,y15s1,y15s2,y16s1,y17s1,y17s2)
 for (s1 in 1:(length(allsemesters)-1)) {
     for (s2 in (s1+1):length(allsemesters)) {
         print(compareSemesters(allsemesters[[s1]],allsemesters[[s2]]))
-        readline(prompt="Press [enter] to continue")
+                                        #readline(prompt="Press [enter] to continue")
     }
 }
 
 ## (3) compare classes in a semester; and compare multiple classes
 for (s in 1:length(allsemesters)) {
     t3=compareClasses(allsemesters[[s]])
-    print(ggplot(t3[[1]],aes(wrap.it(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina"))
-    readline(prompt="Press [enter] to continue")
+    print(ggplot(t3[[1]],aes(str_wrap(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina"))
+                                        #readline(prompt="Press [enter] to continue")
 }
 
 ## (4) plots per question
 for (s in 1:length(allsemesters)) {
     print(evaluateQuestions(allsemesters[[s]]))
-    readline(prompt="Press [enter] to continue")
+                                        #readline(prompt="Press [enter] to continue")
 }
 
 ## (5) track ranks over semesters
 evensemesters=list(y14s2,y15s2,y16s2,y17s2)
 oddsemesters=list(y15s1,y16s1,y17s1)
 for (limit in c(4,5)) {
-    trackSemesters(evensemesters,onlybelow=limit)
-    trackSemesters(evensemesters,rank=T,onlybelow=limit)
+    print(trackSemesters(evensemesters,onlybelow=limit))
+    print(trackSemesters(evensemesters,rank=T,onlybelow=limit))
     
-    trackSemesters(oddsemesters,onlybelow=limit)
-    trackSemesters(oddsemesters,rank=T,onlybelow=limit)
+    print(trackSemesters(oddsemesters,onlybelow=limit))
+    print(trackSemesters(oddsemesters,rank=T,onlybelow=limit))
     
-    trackSemesters(allsemesters,onlybelow=limit)
-    trackSemesters(allsemesters,rank=T,onlybelow=limit)
+    print(trackSemesters(allsemesters,onlybelow=limit))
+    print(trackSemesters(allsemesters,rank=T,onlybelow=limit))
 }
 
 dev.off()
