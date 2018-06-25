@@ -27,7 +27,6 @@ q=merge(q,Q)
 q=q %>% merge(q %>% group_by(q) %>% summarize(N=sum(nrep))) %>% mutate(pct=100*nrep/N)
 
 pdf(width=18,height=12)
-
 colors<-brewer.pal(10,"Spectral")
 plots = list()
 for (i in 1:10) {
@@ -41,6 +40,5 @@ for (i in 1:10) {
 ggarrange(plots=plots,nrow=5,ncol=2)
 #grid.arrange(grobs=plots,nrow=5,ncol=2)
 #ggmatrix(plots=plots,5,2,xlab="Número de respostas")
-
 dev.off()
 
