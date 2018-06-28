@@ -271,7 +271,7 @@ y16s2=evaluateSemester("data/sai/2016-2/Bloco do Professor.csv","2016-2",format=
 y17s1=evaluateSemester("data/sai/2017-1/DocenteDisc-2017-1.csv","2017-1",format="v6")
 y17s2=evaluateSemester("data/sai/2017-2/AvalDiscente_2017-2.csv","2017-2",format="v7")
 
-allsemesters=list(y14s2,y15s1,y15s2,y16s1,y17s1,y17s2)
+allsemesters=list(y14s2,y15s1,y15s2,y16s1,y16s2,y17s1,y17s2)
 
 ## (2) compare evaluations of two semesters
 for (s1 in 1:(length(allsemesters)-1)) {
