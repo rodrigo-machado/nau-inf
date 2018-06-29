@@ -8,6 +8,7 @@ library(ggrepel)
 library(reshape2)
 library(tibble)
 library(stringr)
+library(GGally)
 
 # general information about lectures
 dinfo=read.table("data/other/disciplinas.dat",h=T)
@@ -46,6 +47,7 @@ fix_dots <- function(y) {
 }
 
 readRawData = function(file,year,format) {
+    ## (0) read data, fix column names
     d=read.csv2(file)
     colnames(d)=switch(format,
                        v1=c("disc","turma","curso","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2014-2, 2015-1
@@ -66,7 +68,7 @@ readRawData = function(file,year,format) {
 
 readCookedData = function(file,year,format) {
     file = paste("data/sai/", year, "/AvalDiscente_", year, ".csv", sep="")
-    ## (0) read data, apply weights
+    ## (0) read data, set column names
     d=read.csv2(file)
     colnames(d)=c("disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11")
     d
@@ -78,10 +80,8 @@ evaluateSemester = function(file,year,format="v1",minResponsesProgram=10,minResp
     ## (0) read data, apply weights
     d=readRawData(file,year,format)
     #d=readCookedData(file,year,format)
-
     ## (0.0) fix commas to dots
     #d[,qcol] <- lapply(d[,qcol], function (x) sapply(x, fix_dots ))
-    
     ## (0.1) sum the weights
     d$tw=apply(d[,qcol],1,function(x) { weighted.mean(!is.na(x),w,na.rm=T) })
     ## (0.2) for verification: compute the means
@@ -89,12 +89,12 @@ evaluateSemester = function(file,year,format="v1",minResponsesProgram=10,minResp
     d$nm=d$nm/d$tw
     d$nm[d$tw==0]=NA
     
-    ## (1) clean up data: remove all programs with less than 10 responses
+    ## (1) clean up data: remove all programs with less than `minResponses` responses
     fewR=(d %>% group_by(curso) %>% summarize(N=length(turma)) %>% filter(N<minResponsesProgram))$curso
     e=subset(d,!(curso %in% fewR))
     
     ## (2) aggregate by courses
-    f = e %>% group_by(disc) %>% summarize(N=length(q1),q1=mean(q1,na.rm=T),q2=mean(q2,na.rm=T),q3=mean(q3,na.rm=T),q4=mean(q4,na.rm=T),q5=mean(q5,na.rm=T),q6=mean(q6,na.rm=T),q7=mean(q7,na.rm=T),q8=mean(q8,na.rm=T),q9=mean(q9,na.rm=T),q10=mean(q10,na.rm=T),q11=mean(q11,na.rm=T))
+    f = e %>% group_by(disc) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(e %>% group_by(disc) %>% summarize(N=length(q1)))
     f$m=rowMeans(f[,qcol],na.rm=T)
     f=f[order(f$m),]
     f=subset(f,N>=minResponsesCourse) ## remove all courses with 4 evaluations or less
@@ -105,19 +105,20 @@ evaluateSemester = function(file,year,format="v1",minResponsesProgram=10,minResp
     f$qNA <- apply(f[,c("qNA","m")], 1, function(x) prod(x))
     
     ## (3) produce an overview plot
-    ##op <- par(mar = c(5,14,4,2) + 0.1)
-    ##with(f,barplot(rbind(q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11),names=paste0(disc," (",N,")"),horiz=T,las=1,cex.names=0.5,col=brewer.pal(11,"Oranges"),border=NA,xlab="Nota média  (número de avaliações)",legend.text=c("1","2","3","4","5","6","7","8","9","10","11"),args.legend = list(x = "bottomright", title="Questão", ncol = 2)))
     main.title=paste0("Avaliação geral disciplinas em ",year)
-    ##abline(v=44,col="red",lwd=2)
-    ##grid()
-    ##par(op)
-
     f$xnames=paste0(f$disc," (",f$N,")")
     f$xnames=factor(f$xnames,levels=f$xnames)
     mf=subset(melt(f),grepl("q",variable))
-    print(ggplot(data=mf,aes(x=xnames,y=value,fill=variable))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="",y="Nota média (número de avaliações)")+scale_fill_brewer(name="Questão",palette="Paired", direction = -1)+geom_hline(yintercept=44,color="red")+theme(axis.text.y=element_text(size=5))+theme(legend.position="bottom", legend.key.width = unit(0.5, "line"), legend.key.height = unit(0.5, "line"),legend.text=element_text(size=10))+guides(fill=guide_legend(nrow=1, reverse = TRUE))+labs(title=main.title))#+theme(legend.position=c(0.95,0.15))
+    print(ggplot(data=mf,aes(x=xnames,y=value,fill=variable))+
+          geom_bar(stat="identity")+
+          geom_hline(yintercept=44,color="red")+
+          coord_flip()+
+          guides(fill=guide_legend(nrow=1, reverse = TRUE))+
+          scale_fill_brewer(name="Questão",palette="Paired", direction = -1)+
+          theme(legend.position="bottom", legend.key.width = unit(0.5, "line"), legend.key.height = unit(0.5, "line"),legend.text=element_text(size=10),axis.text.y=element_text(size=5))+
+          labs(title=main.title,x="",y="Nota média (número de avaliações)"))
 
-    ## (4) return raw data, filtered 
+    ## (4) return (raw data,filtered data,data aggregated by course,year)
     list(d,e,f,year)
 }
 
@@ -137,28 +138,27 @@ compareSemesters = function(s1,s2) {
         geom_abline(intercept=0.5,slope=1,color="lightpink2",size=0.2)+
         geom_point(aes(x=m.x,y=m.y),color="red")+
         labs(x=paste0("Média em ",s1[[4]]),y=paste0("Média em ",s2[[4]]),title=paste0("Comparação dos semestres ",s1[[4]]," e ",s2[[4]]))+
-        geom_text_repel(aes(x = m.x, y = m.y, label = label), color = "purple4",
-                        size=2, box.padding = unit(0.06, "lines"),
-                        arrow = arrow(length = unit(0.01, 'npc'), ends = "first"),
-                        force=1, segment.color = "grey40", segment.alpha = 0.70, min.segment.length = 0)
+        geom_text_repel(aes(x = m.x, y = m.y, label = label), color = "purple4", size=2, box.padding = unit(0.06, "lines"),
+                        arrow = arrow(length = unit(0.01, 'npc'), ends = "first"), force=1,
+                        segment.color = "grey40", segment.alpha = 0.70, min.segment.length = 0)
 }
 
 ## compare classes for semester `s`
 ## goal: check if there are significant discrepancies in classes
 compareClasses = function(s,minResponsesCourse=5) {
-    ## (1) aggregate data, count number of classes
-    bycd = s[[2]] %>% group_by(disc,turma) %>% summarize(N=length(q1),q1=mean(q1,na.rm=T),q2=mean(q2,na.rm=T),q3=mean(q3,na.rm=T),q4=mean(q4,na.rm=T),q5=mean(q5,na.rm=T),q6=mean(q6,na.rm=T),q7=mean(q7,na.rm=T),q8=mean(q8,na.rm=T),q9=mean(q9,na.rm=T),q10=mean(q10,na.rm=T),q11=mean(q11,na.rm=T))
+    ## (1) aggregate data by course and class, count number of classes Nt
+    bycd = s[[2]] %>% group_by(disc,turma) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(s[[2]] %>% group_by(disc,turma) %>% summarize(N=length(q1)))
     bycd$m=rowMeans(bycd[,qcol],na.rm=T)
     bycd=subset(bycd,N>=minResponsesCourse)
     bycd=merge(bycd,bycd %>% group_by(disc) %>% summarize(Nt=length(N)),by="disc")
-    bycd.2=subset(bycd,Nt==2)
-    bycd.3=subset(bycd,Nt>2)
+    bycd.2=subset(bycd,Nt==2) ## two classes
+    bycd.3=subset(bycd,Nt>2)  ## three or more classes
 
-    ## (2) extract coordinates, layout them
+    ## (2) extract coordinates for courses with two classes
     bycd.2a=bycd.2 %>% group_by(disc) %>% summarize(m.x=m[1],m.y=m[2])
     bycd.2a$label=str_wrap(bycd.2a$disc,20)
     
-    ## (3) plot it
+    ## (3) plot courses with two classes
     print(ggplot(data=bycd.2a)+
           geom_abline(intercept=0,slope=1,color="lightpink1",size=0.2)+
           geom_abline(intercept=-0.5,slope=1,color="lightpink2",size=0.2)+
@@ -169,19 +169,18 @@ compareClasses = function(s,minResponsesCourse=5) {
                           size=2, box.padding = unit(0.06, "lines"),
                           arrow = arrow(length = unit(0.01, 'npc'), ends = "first"),
                           force=1, segment.color = "grey40", segment.alpha = 0.70, min.segment.length = 0))
-    
+    ## (4) return courses with three or more classes, year
     list(bycd.3,s[[4]])
 }
 
 evaluateQuestions = function(s) {
-    ## (1) melt it, define a couple of auxiliary factors, cut it
+    ## (1) melt answer table, define a couple of auxiliary factors, cut it
     ms=subset(melt(s[[1]]),grepl("q",variable))
     ms$variable=factor(ms$variable,ordered=T,levels=qcol)
     ms$variable20=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(str_wrap(questions,20)))
     ms$variable30=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(str_wrap(questions,30)))
     ms$variable55=factor(ms$variable,ordered=T,levels=rev(qcol),labels=rev(str_wrap(questions,55)))
     ms$dvalue=cut(ms$value,breaks=c(1:5),include.lowest=T)
-    #print(paste("Value range",fivenum(ms$value)))
 
     ## (2) plot it
     ## (2.1) boxplots per question
@@ -190,7 +189,12 @@ evaluateQuestions = function(s) {
     ##ggplot(data=ms,aes(x=value))+geom_bar(stat="bin",fill="red")+facet_wrap(~variable55)+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),x="Nota",y="Número de respostas")#+scale_y_log10()
     ## (2.3) percentages/counts per interval
     eval(substitute(expr = {
-        ggplot(data=ms,aes(x=variable30,fill=dvalue))+geom_bar(aes(y=..count../nr))+scale_y_continuous(labels=scales::percent)+coord_flip()+labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),y="Percentagens",x="Questão")+scale_fill_brewer(name="Nota",palette="Oranges")#values=c("red","black","white","gray"))
+        ggplot(data=ms,aes(x=variable30,fill=dvalue))+
+            geom_bar(aes(y=..count../nr))+
+            scale_y_continuous(labels=scales::percent)+
+            coord_flip()+
+            labs(title=paste0("Distribuição das repostas em ",s[[4]],". O professor..."),y="Percentagens",x="Questão")+
+            scale_fill_brewer(name="Nota",palette="Oranges")#values=c("red","black","white","gray"))
     },env = list(nr=nrow(s[[1]]))))
 }
 
@@ -277,7 +281,7 @@ allsemesters=list(y14s2,y15s1,y15s2,y16s1,y16s2,y17s1,y17s2)
 for (s1 in 1:(length(allsemesters)-1)) {
     for (s2 in (s1+1):length(allsemesters)) {
         print(compareSemesters(allsemesters[[s1]],allsemesters[[s2]]))
-                                        #readline(prompt="Press [enter] to continue")
+        ##readline(prompt="Press [enter] to continue")
     }
 }
 
@@ -285,13 +289,13 @@ for (s1 in 1:(length(allsemesters)-1)) {
 for (s in 1:length(allsemesters)) {
     t3=compareClasses(allsemesters[[s]])
     print(ggplot(t3[[1]],aes(str_wrap(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina"))
-                                        #readline(prompt="Press [enter] to continue")
+    ##readline(prompt="Press [enter] to continue")
 }
 
 ## (4) plots per question
 for (s in 1:length(allsemesters)) {
     print(evaluateQuestions(allsemesters[[s]]))
-                                        #readline(prompt="Press [enter] to continue")
+    ##readline(prompt="Press [enter] to continue")
 }
 
 ## (5) track ranks over semesters
@@ -348,5 +352,7 @@ fb[order(-fb$N),]
 
 ## Open points/Ideas:
 ## 1) Overall correlation of all eleven questions (plot a matrix)?
+ggpairs((y17s2[[3]] %>% select(-N,-qNA,-m,-xnames,-disc)))
+ggplot(data=y17s2[[3]])+geom_point(aes(x=q3,y=q5))+geom_abline()+labs(x=questions[3],y=questions[5])
 ## 2) Seperate aspects of professors and courses?
 ## 3) Join by "question groups"?
