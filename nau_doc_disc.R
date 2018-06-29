@@ -60,9 +60,9 @@ readRawData = function(file,year,format) {
                        )
     
     ## (0.0) fix format: there's no "curso" information from 2016-2 on
-    if (format=="v5" || format=="v6" || format=="v7") {
+    if (format=="v5" || format=="v6" || format=="v7")
         d$curso="CC"
-    }
+
     d
 }
 
@@ -165,10 +165,9 @@ compareClasses = function(s,minResponsesCourse=5) {
           geom_abline(intercept=0.5,slope=1,color="lightpink2",size=0.2)+
           geom_point(aes(x=m.x,y=m.y),color="red")+
           labs(x="Nota média turma A",y="Nota média turma B",title=paste0("Comparação das disciplinas em ",s[[4]]," com duas turmas"))+
-          geom_text_repel(aes(x = m.x, y = m.y, label = label), color = "purple4",
-                          size=2, box.padding = unit(0.06, "lines"),
-                          arrow = arrow(length = unit(0.01, 'npc'), ends = "first"),
-                          force=1, segment.color = "grey40", segment.alpha = 0.70, min.segment.length = 0))
+          geom_text_repel(aes(x = m.x, y = m.y, label = label), color = "purple4",  size=2, box.padding = unit(0.06, "lines"),
+                          arrow = arrow(length = unit(0.01, 'npc'), ends = "first"), force=1,
+                          segment.color = "grey40", segment.alpha = 0.70, min.segment.length = 0))
     ## (4) return courses with three or more classes, year
     list(bycd.3,s[[4]])
 }
@@ -221,14 +220,13 @@ trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
     if (onlybelow<5) {
         restrictions=c(restrictions,paste("com pelo menos uma nota média menor que ",onlybelow,sep=""))
         label_function = geom_text_repel
-    } else {
+    } else
         label_function = geom_text
-    }
-    if (rank) {
-        for (cn in sn) {
+
+    if (rank)
+        for (cn in sn)
             ma[[cn]]=nrow(ma)+1-rank(ma[[cn]],na.last="keep")
-        }
-    }
+    
     ma = ma[selectedCourses,]
     mma=melt(ma, id.vars = c("disc","mandatory"))
     ma = ma %>% filter(disc %in% mma$disc)
@@ -239,24 +237,23 @@ trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
     
     ## (3) plot it
     g=ggplot(data=mma,aes(x=variable,y=value,color=disc,group=disc))+geom_point()+geom_line()+theme(legend.position="none")+scale_x_discrete(breaks=sn,labels=sn)
-    if (onlyMandatory) {
+    if (onlyMandatory)
         labels=str_wrap(ma$disc,80)
-    } else {
+    else
         labels=str_wrap(paste(ma$disc,ifelse(ma$mandatory,"","(E)")),80)
-    }
-    if (length(restrictions)>0) {
+
+    if (length(restrictions)>0)
         comment=paste(comment," (Somente disciplinas ",paste(restrictions,collapse=" "),")",sep="")
-    }
-    if (rank) {
+
+    if (rank)
         g=g+label_function(data=ma,x=2,y=-ma[,sn[1]],label=labels,hjust=1.1,size=2)+
             label_function(data=ma,x=length(sn)+1,y=-ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
             scale_y_reverse()+
             labs(title=paste("Posições na avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Posição")
-    } else {
+    else
         g=g+label_function(data=ma,x=2,y= ma[,sn[1]],label=labels,hjust=1.1,size=2)+
             label_function(data=ma,x=length(sn)+1,y= ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
             labs(title=paste("Avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Nota")
-    }
     g
 }
 
@@ -344,7 +341,13 @@ fcnameorder=arrange(data.frame(allfb %>% group_by(cnum,fcname) %>% summarize(N=s
 allfb$fcname=factor(allfb$fcname,levels=fcnameorder)
 
 pdf("respostas.pdf",9,6)
-ggplot(data=subset(allfb,N>=10),aes(x=fcname,y=N,fill=sem))+geom_bar(stat="identity")+coord_flip()+labs(title="",x="")+scale_fill_discrete(name="Sem.")+theme(legend.position=c(0.9,0.13))+scale_fill_brewer(name="Nota",palette="Oranges")#+scale_y_log10()##
+ggplot(data=subset(allfb,N>=10),aes(x=fcname,y=N,fill=sem))+
+    geom_bar(stat="identity")+
+    coord_flip()+
+    labs(title="",x="")+
+    scale_fill_discrete(name="Sem.")+
+    theme(legend.position=c(0.9,0.13))+
+    scale_fill_brewer(name="Nota",palette="Oranges")#+scale_y_log10()##
 dev.off()
 
 print(xtable(fb),file="cursos-2015-1.tex")
