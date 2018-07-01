@@ -94,7 +94,13 @@ evaluateSemester = function(file,year,format="v1",minResponsesProgram=10,minResp
     e=subset(d,!(curso %in% fewR))
     
     ## (2) aggregate by courses
-    f = e %>% group_by(disc) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(e %>% group_by(disc) %>% summarize(N=length(q1)))
+    if (year=="2017-2"){ #tamanho das turmas é incluso
+      g = e %>% group_by(disc,turma,tam) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(e %>% group_by(disc) %>% summarize(N=length(q1)))
+      f = g %>% group_by(disc,N) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(g %>% group_by(disc,N) %>% summarize(tam=sum(tam)))
+      
+    } else {
+      f = e %>% group_by(disc) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(e %>% group_by(disc) %>% summarize(N=length(q1)))
+    }
     f$m=rowMeans(f[,qcol],na.rm=T)
     f=f[order(f$m),]
     f=subset(f,N>=minResponsesCourse) ## remove all courses with 4 evaluations or less
@@ -106,7 +112,12 @@ evaluateSemester = function(file,year,format="v1",minResponsesProgram=10,minResp
     
     ## (3) produce an overview plot
     main.title=paste0("Avaliação geral disciplinas em ",year)
-    f$xnames=paste0(f$disc," (",f$N,")")
+    if (year=="2017-2"){ #tamanho das turmas é incluso
+      f$xnames=paste0(f$disc," (",f$N,"/",f$tam,")")
+    }else {
+      f$xnames=paste0(f$disc," (",f$N,")")
+    }
+    
     f$xnames=factor(f$xnames,levels=f$xnames)
     mf=subset(melt(f),grepl("q",variable))
     print(ggplot(data=mf,aes(x=xnames,y=value,fill=variable))+
@@ -285,7 +296,7 @@ for (s1 in 1:(length(allsemesters)-1)) {
 ## (3) compare classes in a semester; and compare multiple classes
 for (s in 1:length(allsemesters)) {
     t3=compareClasses(allsemesters[[s]])
-    print(ggplot(t3[[1]],aes(str_wrap(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina"))
+    print(ggplot(t3[[1]],aes(str_wrap(paste0(disc," (",Nt,")"),20),m))+geom_boxplot(color="red")+geom_point(colour = "darkred", size = 1)+coord_flip()+labs(title=paste0("Disciplinas com 3 ou mais turmas em ",t3[[2]]),y="Nota média da turma",x="Disciplina"))
     ##readline(prompt="Press [enter] to continue")
 }
 
