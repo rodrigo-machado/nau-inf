@@ -46,7 +46,7 @@ fix_dots <- function(y) {
   return(as.numeric(gsub(",",".",as.character(y))))
 }
 
-readRawData = function(file,year,format) {
+readRawData = function(file,year,format,percFile=F) {
     ## (0) read data, fix column names
     d=read.csv2(file)
     colnames(d)=switch(format,
@@ -58,11 +58,26 @@ readRawData = function(file,year,format) {
                        v6=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","q12","q13","q14"), # 2017-1
                        v7=c("disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","tam") # 2017-2
                        )
+    #remove extra spaces
+    d$turma <- unlist(lapply(d$turma, function (x) gsub(' ', '', x)))
     
-    ## (0.0) fix format: there's no "curso" information from 2016-2 on
+    ## (0.1) add participation percentange
+    if (percFile){
+      file2 = paste("data/sai/", year, "/AtividadesDeEnsino-", year, ".csv", sep="")  
+      d_perc = read.csv2(file2)
+      colnames(d_perc) = c("tipoAval","semestre","unid","dept","sigla","disc","turma","avg","desvio","percResp","percNA")
+      d_perc = d_perc[c("disc", "turma", "percResp", "percNA")]
+      
+      #remove extra spaces(2017-2 problem)
+      d_perc$turma <- unlist(lapply(d_perc$turma, function (x) gsub(' ', '', x)))
+      
+      
+      d=merge(d,d_perc, by=c("disc", "turma"), all.x=T, sort=FALSE)
+    }
+    
+    ## (0.2) fix format: there's no "curso" information from 2016-2 on
     if (format=="v5" || format=="v6" || format=="v7")
-        d$curso="CC"
-
+      d$curso="CC"
     d
 }
 
@@ -76,9 +91,9 @@ readCookedData = function(file,year,format) {
 
 ## evaluate the courses of a given semester
 ## input: a data file `f`, the name of the year, the format
-evaluateSemester = function(file,year,format="v1",minResponsesProgram=10,minResponsesCourse=5) {
+evaluateSemester = function(file,year,format="v1",percFile=F,minResponsesProgram=10,minResponsesCourse=5) {
     ## (0) read data, apply weights
-    d=readRawData(file,year,format)
+    d=readRawData(file,year,format,percFile)
     #d=readCookedData(file,year,format)
     ## (0.0) fix commas to dots
     #d[,qcol] <- lapply(d[,qcol], function (x) sapply(x, fix_dots ))
@@ -94,10 +109,10 @@ evaluateSemester = function(file,year,format="v1",minResponsesProgram=10,minResp
     e=subset(d,!(curso %in% fewR))
     
     ## (2) aggregate by courses
-    if (year=="2017-2"){ #tamanho das turmas é incluso
-      g = e %>% group_by(disc,turma,tam) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(e %>% group_by(disc) %>% summarize(N=length(q1)))
-      f = g %>% group_by(disc,N) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(g %>% group_by(disc,N) %>% summarize(tam=sum(tam)))
-      
+    if (percFile){ #include percentage of participation data
+      g = e %>% group_by(disc,turma,percResp,percNA) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(e %>% group_by(disc,turma,percResp,percNA) %>% summarize(N=length(q1)))
+      g$tam=round(100*g$N/g$percResp)
+      f = g %>% group_by(disc) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(g %>% group_by(disc) %>% summarize(tam=sum(tam),N=sum(N)))
     } else {
       f = e %>% group_by(disc) %>% summarize_at(vars(q1:q11),funs(mean(.,na.rm=T))) %>% full_join(e %>% group_by(disc) %>% summarize(N=length(q1)))
     }
@@ -112,8 +127,8 @@ evaluateSemester = function(file,year,format="v1",minResponsesProgram=10,minResp
     
     ## (3) produce an overview plot
     main.title=paste0("Avaliação geral disciplinas em ",year)
-    if (year=="2017-2"){ #tamanho das turmas é incluso
-      f$xnames=paste0(f$disc," (",f$N,"/",f$tam,")")
+    if (percFile){ #include classes size
+      f$xnames=paste0(f$disc," [",f$N,"/",f$tam," - ",round(100*f$N/f$tam),"%]")
     }else {
       f$xnames=paste0(f$disc," (",f$N,")")
     }
@@ -279,9 +294,9 @@ y14s2=evaluateSemester("data/sai/2014-2/AvalDocPeloDisc 2014-2.csv","2014-2",for
 y15s1=evaluateSemester("data/sai/2015-1/AvalDocPeloDisc 2015-1.v1.csv","2015-1",format="v1")
 y15s2=evaluateSemester("data/sai/2015-2/ADoc Disc - Quant.csv","2015-2",format="v2")
 y16s1=evaluateSemester("data/sai/2016-1/AvalDocPeloDisc 2016-1.csv","2016-1",format="v4")
-y16s2=evaluateSemester("data/sai/2016-2/Bloco do Professor.csv","2016-2",format="v5")
-y17s1=evaluateSemester("data/sai/2017-1/DocenteDisc-2017-1.csv","2017-1",format="v6")
-y17s2=evaluateSemester("data/sai/2017-2/AvalDiscente_2017-2.csv","2017-2",format="v7")
+y16s2=evaluateSemester("data/sai/2016-2/Bloco do Professor.csv","2016-2",format="v5",percFile=T)
+y17s1=evaluateSemester("data/sai/2017-1/DocenteDisc-2017-1.csv","2017-1",format="v6",percFile=T)
+y17s2=evaluateSemester("data/sai/2017-2/AvalDiscente_2017-2.csv","2017-2",format="v7",percFile=T)
 
 allsemesters=list(y14s2,y15s1,y15s2,y16s1,y16s2,y17s1,y17s2)
 
