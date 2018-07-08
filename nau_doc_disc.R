@@ -227,14 +227,14 @@ evaluateQuestions = function(s) {
 
 ## track a list of semesters `sl` over time
 ## show only courses with at least one evaluation below `onlybelow`
-trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
+trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F, type = "m") {
     restrictions=list()
     ## (1) merge semester, compute rank if requested
-    ma=sl[[1]][[3]][,c("disc","m")]
-    colnames(ma)[colnames(ma) == 'm'] <- sl[[1]][[4]] ##rename col to year
+    ma=sl[[1]][[3]][,c("disc",type)]
+    colnames(ma)[colnames(ma) == type] <- sl[[1]][[4]] ##rename col to year
     for (s in sl[-1]) {
-        ma=merge(ma,s[[3]][,c("disc","m")],by="disc")
-        colnames(ma)[colnames(ma) == 'm'] <- s[[4]] ##rename col to year
+        ma=merge(ma,s[[3]][,c("disc",type)],by="disc")
+        colnames(ma)[colnames(ma) == type] <- s[[4]] ##rename col to year
     }
     sn = colnames(ma[-1]) ##Semester's year's name
     ma = ma %>% merge(dinfo %>% select(-theory,-semester))
@@ -246,7 +246,7 @@ trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
     }
     selectedCourses=apply(ma[,sn],1,function(x) { min(x)<onlybelow })
     if (onlybelow<5) {
-        restrictions=c(restrictions,paste("com pelo menos uma nota média menor que ",onlybelow,sep=""))
+        restrictions=c(restrictions,paste("ao menos uma nota média menor de ",onlybelow,sep=""))
         label_function = geom_text_repel
     } else
         label_function = geom_text
@@ -264,6 +264,20 @@ trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
     mma=rbind(mma,data.frame(disc=" ",mandatory=T,variable="rlp",value=NA))
     
     ## (3) plot it
+    avalType=switch(type,
+                    m="Avaliação geral ",
+                    q1=paste("Avaliação Q1: ",questions[1]," "),
+                    q2=paste("Avaliação Q2: ",questions[2]," "),
+                    q3=paste("Avaliação Q3: ",questions[3]," "),
+                    q4=paste("Avaliação Q4: ",questions[4]," "),
+                    q5=paste("Avaliação Q5: ",questions[5]," "),
+                    q6=paste("Avaliação Q6: ",questions[6]," "),
+                    q7=paste("Avaliação Q7: ",questions[7]," "),
+                    q8=paste("Avaliação Q8: ",questions[8]," "),
+                    q9=paste("Avaliação Q9: ",questions[9]," "),      
+                    q10=paste("Avaliação Q10: ",questions[10]," "),
+                    q11=paste("Avaliação Q11: ",questions[11]," "))
+    
     g=ggplot(data=mma,aes(x=variable,y=value,color=disc,group=disc))+geom_point()+geom_line()+theme(legend.position="none")+scale_x_discrete(breaks=sn,labels=sn)
     if (onlyMandatory)
         labels=str_wrap(ma$disc,80)
@@ -271,17 +285,17 @@ trackSemesters = function(sl,rank=F,comment="",onlybelow=4,onlyMandatory=F) {
         labels=str_wrap(paste(ma$disc,ifelse(ma$mandatory,"","(E)")),80)
 
     if (length(restrictions)>0)
-        comment=paste(comment," (Somente disciplinas ",paste(restrictions,collapse=" "),")",sep="")
+        comment=paste(comment," (",paste(restrictions,collapse=" "),")",sep="")
 
     if (rank)
         g=g+label_function(data=ma,x=2,y=-ma[,sn[1]],label=labels,hjust=1.1,size=2)+
             label_function(data=ma,x=length(sn)+1,y=-ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
             scale_y_reverse()+
-            labs(title=paste("Posições na avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Posição")
+            labs(title=paste("Posições: ",avalType,"(",sn[1],"-",sn[length(sn)],")",comment,sep=""),x="Semestre",y="Posição")
     else
         g=g+label_function(data=ma,x=2,y= ma[,sn[1]],label=labels,hjust=1.1,size=2)+
             label_function(data=ma,x=length(sn)+1,y= ma[,sn[length(sn)]],label=labels,hjust=-0.1,size=2)+
-            labs(title=paste("Avaliação ",sn[1],"-",sn[length(sn)],comment,sep=""),x="Semestre",y="Nota")
+            labs(title=paste(avalType,"(",sn[1],"-",sn[length(sn)],")",comment,sep=""),x="Semestre",y="Nota")
     g
 }
 
@@ -323,7 +337,7 @@ for (s in 1:length(allsemesters)) {
     ##readline(prompt="Press [enter] to continue")
 }
 
-## (5) track ranks over semesters
+## (5.0) track ranks over semesters
 evensemesters=list(y14s2,y15s2,y16s2,y17s2)
 oddsemesters=list(y15s1,y16s1,y17s1)
 for (limit in c(4,5)) {
@@ -336,6 +350,13 @@ for (limit in c(4,5)) {
     print(trackSemesters(allsemesters,onlybelow=limit))
     print(trackSemesters(allsemesters,rank=T,onlybelow=limit))
 }
+
+## (5.1) track semesters by questions
+for(type in qcol){
+  print(trackSemesters(allsemesters,onlybelow=4, type=type))
+}
+
+
 
 dev.off()
 
