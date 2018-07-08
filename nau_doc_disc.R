@@ -60,7 +60,9 @@ readRawData = function(file,year,format,percFile=F) {
                        )
     #remove extra spaces
     d$turma <- unlist(lapply(d$turma, function (x) gsub(' ', '', x)))
-    
+    if(format=="v6"){
+      d = d[c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11")]
+    }
     ## (0.1) add participation percentange
     if (percFile){
       file2 = paste("data/sai/", year, "/AtividadesDeEnsino-", year, ".csv", sep="")  
@@ -144,11 +146,6 @@ evaluateSemester = function(file,year,format="v1",percFile=F,minResponsesProgram
           theme(legend.position="bottom", legend.key.width = unit(0.5, "line"), legend.key.height = unit(0.5, "line"),legend.text=element_text(size=10),axis.text.y=element_text(size=5))+
           labs(title=main.title,x="",y="Nota média (número de avaliações)"))
     f$qNA <- NULL
-    if(year="2017-1"){
-      f$q12 <- NULL
-      f$q13 <- NULL
-      f$q14 <- NULL
-    }
     ## (4) return (raw data,filtered data,data aggregated by course,year)
     list(d,e,f,year)
 }
