@@ -143,7 +143,12 @@ evaluateSemester = function(file,year,format="v1",percFile=F,minResponsesProgram
           scale_fill_brewer(name="Questão",palette="Paired", direction = -1)+
           theme(legend.position="bottom", legend.key.width = unit(0.5, "line"), legend.key.height = unit(0.5, "line"),legend.text=element_text(size=10),axis.text.y=element_text(size=5))+
           labs(title=main.title,x="",y="Nota média (número de avaliações)"))
-
+    f$qNA <- NULL
+    if(year="2017-1"){
+      f$q12 <- NULL
+      f$q13 <- NULL
+      f$q14 <- NULL
+    }
     ## (4) return (raw data,filtered data,data aggregated by course,year)
     list(d,e,f,year)
 }
