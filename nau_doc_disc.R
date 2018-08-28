@@ -93,7 +93,7 @@ readCookedData = function(file,year,format) {
 
 ## evaluate the courses of a given semester
 ## input: a data file `f`, the name of the year, the format
-evaluateSemester = function(file,year,format="v1",percFile=F,minResponsesProgram=10,minResponsesCourse=5) {
+evaluateSemester = function(file,year,format="v1",percFile=F,minResponsesProgram=0,minResponsesCourse=0) {
     ## (0) read data, apply weights
     d=readRawData(file,year,format,percFile)
     #d=readCookedData(file,year,format)
