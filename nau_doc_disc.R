@@ -56,7 +56,8 @@ readRawData = function(file,year,format,percFile=F) {
                        v4=c("curso","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","avg"), ## 2016-1
                        v5=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11"), # 2016-2
                        v6=c("dept","sigla","disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","q12","q13","q14"), # 2017-1
-                       v7=c("disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","tam") # 2017-2
+                       v7=c("disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11","tam"), # 2017-2
+                       v8=c("disc","turma","q1","q2","q3","q4","q5","q6","q7","q8","q9","q10","q11") # 2018-1
                        )
     #remove extra spaces
     d$turma <- unlist(lapply(d$turma, function (x) gsub(' ', '', x)))
@@ -78,7 +79,7 @@ readRawData = function(file,year,format,percFile=F) {
     }
     
     ## (0.2) fix format: there's no "curso" information from 2016-2 on
-    if (format=="v5" || format=="v6" || format=="v7")
+    if (format=="v5" || format=="v6" || format=="v7" || format=="v8")
       d$curso="CC"
     d
 }
@@ -313,8 +314,9 @@ y16s1=evaluateSemester("data/sai/2016-1/AvalDocPeloDisc 2016-1.csv","2016-1",for
 y16s2=evaluateSemester("data/sai/2016-2/Bloco do Professor.csv","2016-2",format="v5",percFile=T)
 y17s1=evaluateSemester("data/sai/2017-1/DocenteDisc-2017-1.csv","2017-1",format="v6",percFile=T)
 y17s2=evaluateSemester("data/sai/2017-2/AvalDiscente_2017-2.csv","2017-2",format="v7",percFile=T)
+y18s1=evaluateSemester("data/sai/2018-1/AvalDiscente_2018-1.csv","2018-1",format="v8")
 
-allsemesters=list(y14s2,y15s1,y15s2,y16s1,y16s2,y17s1,y17s2)
+allsemesters=list(y14s2,y15s1,y15s2,y16s1,y16s2,y17s1,y17s2,y18s1)
 
 ## (2) compare evaluations of two semesters
 for (s1 in 1:(length(allsemesters)-1)) {
@@ -339,7 +341,7 @@ for (s in 1:length(allsemesters)) {
 
 ## (5.0) track ranks over semesters
 evensemesters=list(y14s2,y15s2,y16s2,y17s2)
-oddsemesters=list(y15s1,y16s1,y17s1)
+oddsemesters=list(y15s1,y16s1,y17s1,y18s1)
 for (limit in c(4,5)) {
     print(trackSemesters(evensemesters,onlybelow=limit))
     print(trackSemesters(evensemesters,rank=T,onlybelow=limit))
